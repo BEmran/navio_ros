@@ -20,6 +20,8 @@ catkin_package(
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
+  include/Navio/Util.cpp
+  include/Navio/PWM.cpp
   include/Navio/MPU9250.cpp
   include/Navio/LSM9DS1.cpp
   include/lib/SamplingTime.cpp
