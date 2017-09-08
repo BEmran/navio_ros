@@ -16,12 +16,12 @@ Header files
 #include <unistd.h>      // usleep
 #include <pthread.h>   // create thread
 
-#include "../Navio/MPU9250.h"      // Navio mpu sensor
-#include "../Navio/LSM9DS1.h"     // Navio lsm sensor
-#include "../lib/AHRS.hpp"              // Navio Mahony AHRS
-#include "../Navio/Util.h"                 // Navio Utility
-#include "../Navio/PWM.h"             // Navio PWM output
-#include "../lib/SamplingTime.h"    // samplig time
+#include "Navio/MPU9250.h"      // Navio mpu sensor
+#include "Navio/LSM9DS1.h"     // Navio lsm sensor
+#include "Navio/Util.h"                 // Navio Utility
+#include "Navio/PWM.h"             // Navio PWM output
+#include "lib/AHRS.hpp"              // Navio Mahony AHRS
+#include "lib/SamplingTime.h"    // samplig time
 
 #include "ros/ros.h"
 #include "geometry_msgs/Vector3Stamped.h"   // for encodres msg

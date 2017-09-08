@@ -139,8 +139,10 @@ void *controlThread(void *data) {
     printf("Exit control thread\n");
     pthread_exit(NULL);
 }
-// ********************************************************** //
-// ROS Node thread
+
+/*****************************************************************************************
+ rosNodeThread: ROS Node thread
+ *****************************************************************************************/
 void *rosNodeThread(void *data) {
     printf("Start ROS Node thread\n");
     struct dataStruct *my_data;
@@ -151,7 +153,7 @@ void *rosNodeThread(void *data) {
     ros::NodeHandle n;
     ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
-    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoderes", 1000, encoderesCallback);
+    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encoderesCallback);
     ros::Rate loop_rate(_ROS_FREQ);
     sensor_msgs::Imu imu_msg;
     geometry_msgs::TwistStamped du_msg;
