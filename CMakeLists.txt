@@ -18,6 +18,13 @@ catkin_package(
   CATKIN_DEPENDS geometry_msgs roscpp rospy std_msgs
 )
 
+## Declare a C++ library
+add_library(${PROJECT_NAME}
+  include/Navio/MPU9250.cpp
+  include/Navio/LSM9DS1.cpp
+  include/lib/SamplingTime.cpp
+)
+
 ## Specify additional locations of header files
 include_directories(
    include
@@ -25,4 +32,4 @@ include_directories(
 )
 
 add_executable(navio_basic src/navio_basic.cpp)
-target_link_libraries(navio_basic  ${catkin_LIBRARIES})
+target_link_libraries(navio_basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
