@@ -9,28 +9,30 @@
 main: Run main function
  ****************************************************************************************/
 int main(int argc, char** argv) {
-    // Welcome msg
+    //----------------------------------------- Welcome msg -------------------------------------
     printf("Start Program\n");
     signal(SIGINT, ctrlCHandler);
 
-    // Define main variables
+    //------------------------------------- Define main variables --------------------------------
     struct dataStruct data;
     data.argc = argc;
     data.argv = argv;
 
-    // Start threads
+    //----------------------------------------- Start threads ---------------------------------------
     pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
+    pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
 
-    // Main loop to read encoders value
+    //------------------------------------------  Main loop ------------------------------------------
     while (!_CloseRequested) {
         printf("main\n");
         sleep(1);
     }
 
-    // Exit procedure
+    //---------------------------------------- Exit procedure -------------------------------------
     pthread_cancel(_Thread_Sensors);
     pthread_cancel(_Thread_Control);
+    pthread_cancel(_Thread_RosNode);
     printf("Close program\n");
 
     return 0;
@@ -49,9 +51,10 @@ void ctrlCHandler(int signal) {
  *****************************************************************************************/
 void *sensorsThread(void *data) {
     printf("Start Sensors thread\n");
-
     struct dataStruct *my_data;
     my_data = (struct dataStruct *) data;
+
+    //----------------------------------------  Initialize IMU ----------------------------------------
     char imu_name[] = "mpu";
     my_data->ins = imuSetup(&my_data->ahrs, imu_name);
     if (my_data->ins == NULL) {
@@ -59,13 +62,14 @@ void *sensorsThread(void *data) {
         pthread_exit(NULL);
     }
     printf("Initialized imu sensor\n");
+
+    //------------------------------------------  Main loop ------------------------------------------
     SamplingTime st(_SENSOR_FREQ);
     float dt, dtsumm = 0;
-    // Main loop
     while (!_CloseRequested) {
         dt = st.tsCalculat();
 
-        //-------------------------------------- Read Sensor --------------------------------------
+        //-------------------------------------- Read Sensor ---------------------------------------
         getIMU(my_data->ins, &my_data->ahrs, &my_data->imu, dt);
         dtsumm += dt;
         if (dtsumm > 1) {
@@ -135,7 +139,57 @@ void *controlThread(void *data) {
     printf("Exit control thread\n");
     pthread_exit(NULL);
 }
+// ********************************************************** //
+// ROS Node thread
+void *rosNodeThread(void *data) {
+    printf("Start ROS Node thread\n");
+    struct dataStruct *my_data;
+    my_data = (struct dataStruct *) data;
 
+    //--------------------------------------- Initialize ROS ------------------------------------------
+    ros::init(my_data->argc,my_data->argv,"navio_basic");
+    ros::NodeHandle n;
+    ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
+    ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
+    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoderes", 1000, encoderesCallback);
+    ros::Rate loop_rate(_ROS_FREQ);
+    sensor_msgs::Imu imu_msg;
+    geometry_msgs::TwistStamped du_msg;
+
+    //------------------------------------------  Main loop -------------------------------------------
+    while (ros::ok() && !_CloseRequested)
+    {
+        imu_msg.header.stamp = ros::Time::now();
+        imu_msg.header.seq++;
+        imu_msg.angular_velocity.x = my_data->imu.gx;
+        imu_msg.angular_velocity.y = my_data->imu.gy;
+        imu_msg.angular_velocity.z = my_data->imu.gz;
+        imu_msg.linear_acceleration.x = my_data->imu.ax;
+        imu_msg.linear_acceleration.y = my_data->imu.ay;
+        imu_msg.linear_acceleration.z = my_data->imu.az;
+        imu_msg.orientation.x = my_data->ahrs.getX();
+        imu_msg.orientation.y = my_data->ahrs.getY();
+        imu_msg.orientation.z = my_data->ahrs.getZ();
+        imu_msg.orientation.w = my_data->ahrs.getW();
+        imu_pub.publish(imu_msg);
+
+        du_msg.header.stamp = ros::Time::now();
+        du_msg.header.seq++;
+        du_msg.twist.angular.x = my_data->du[0];
+        du_msg.twist.angular.y = my_data->du[1];
+        du_msg.twist.angular.z = my_data->du[2];
+        du_msg.twist.linear.x = my_data->du[3];
+        du_pub.publish(du_msg);
+
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+
+    //---------------------------------------- Exit procedure ---------------------------------------
+    ctrlCHandler(0);
+    printf("Exit ROS Node thread\n");
+    pthread_exit(NULL);
+}
 /*****************************************************************************************
  imuSetup: Initialize IMU sensor and calibrate gyro sensor
 *****************************************************************************************/
@@ -190,9 +244,9 @@ void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt) {
     ins->read_gyroscope(&imu->gx, &imu->gy, &imu->gz);
     ins->read_magnetometer(&imu->mx, &imu->my, &imu->mz);
     // Scale Accelerometer measurement by dividing by 9.81
-    imu->ax /= G_SI;
-    imu->ay /= G_SI;
-    imu->az /= G_SI;
+    imu->ax /= _G_SI;
+    imu->ay /= _G_SI;
+    imu->az /= _G_SI;
     //
     if (imu->gz <= 0.01 && imu->gz >= -0.01)
         imu->gz = 0.0;
@@ -255,4 +309,14 @@ float sat(float x, float upper, float lower) {
     else if (x >= upper)
         x = upper;
     return x;
+}
+
+/*****************************************************************************************
+encoderesCallback: Read encoders and map it to gloabal variable
+******************************************************************************************/
+void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+{
+    encoderes.header = msg->header;
+    encoderes.vector = msg->vector;
+    // ROS_INFO("I heard: [%f]", encoderes.vector.x);
 }

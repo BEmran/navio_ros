@@ -23,12 +23,18 @@ Header files
 #include "../Navio/PWM.h"             // Navio PWM output
 #include "../lib/SamplingTime.h"    // samplig time
 
+#include "ros/ros.h"
+#include "geometry_msgs/Vector3Stamped.h"   // for encodres msg
+#include "geometry_msgs/TwistStamped.h"       // for du msg
+#include "sensor_msgs/Imu.h"                              // for sensor msg
+
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
 #define _SENSOR_FREQ 500        // Sensor thread frequency in Hz
 #define _CONTROL_FREQ 200     // Control thread frequency in Hz
-#define G_SI 9.80665
+#define _ROS_FREQ 100                // ROS thread frequency in Hz
+#define _G_SI 9.80665
 #define _MOTOR1    0                // CH0 front motor
 #define _MOTOR2    1                // CH1 right motor
 #define _MOTOR3    2                // CH2 back motor
@@ -45,6 +51,8 @@ using namespace std;
 bool _CloseRequested = false;
 pthread_t _Thread_Sensors;
 pthread_t _Thread_Control;
+pthread_t _Thread_RosNode;
+geometry_msgs::Vector3Stamped encoderes;
 
 /*****************************************************************************************
 Define structures
@@ -72,13 +80,14 @@ Functions prototype
 ******************************************************************************************/
 void *sensorsThread(void *data);
 void *controlThread(void *data);
+void *rosNodeThread(void *data);
 void ctrlCHandler(int signal);
 InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name);
 void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt);
 void setPWMDuty(PWM* pwm, float uPWM[4]);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
-
+void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 
 #endif // NAVIO_BASIC
 
