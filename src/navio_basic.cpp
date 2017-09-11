@@ -219,8 +219,8 @@ InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name) {
     for (int i = 0; i < i_max; i++) {
         ins->update();
         ins->read_gyroscope(&gx, &gy, &gz);
-        offset[0] += -gx;
-        offset[1] += -gy;
+        offset[0] += -gy;		// rotating gyro axis by rotating +90 around z-axis gx = gy
+        offset[1] += -(-1*gx);		// gy = gx * -1
         offset[2] += -gz;
         usleep(10000);
     }
@@ -246,6 +246,11 @@ void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt) {
     ins->read_gyroscope(&imu->gx, &imu->gy, &imu->gz);
     ins->read_magnetometer(&imu->mx, &imu->my, &imu->mz);
     // Scale Accelerometer measurement by dividing by 9.81
+    float tmpgx = imu->gx, tmpax = imu->ax;  // rotating gyro axis by rotating +90 around z-axis
+    imu->gx = imu->gy; 	          		// gx = gy
+    imu->gy = -tmpgx;				// gy = -1 * gx
+    imu->ax = imu->ay;				// ax = ay
+    imu->ay = -tmpax;				// ay = -1 * ax
     imu->ax /= _G_SI;
     imu->ay /= _G_SI;
     imu->az /= _G_SI;
