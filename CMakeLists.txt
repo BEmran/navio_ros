@@ -25,6 +25,7 @@ add_library(${PROJECT_NAME}
   include/Navio/MPU9250.cpp
   include/Navio/LSM9DS1.cpp
   include/lib/SamplingTime.cpp
+  include/${PROJECT_NAME}/navio_interface.cpp
 )
 
 ## Specify additional locations of header files
@@ -33,8 +34,8 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(navio_basic src/navio_basic.cpp)
-target_link_libraries(navio_basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(basic src/basic.cpp)
+target_link_libraries(basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 add_executable(navio_control_roll_servo src/navio_control_roll_servo.cpp)
 target_link_libraries(navio_control_roll_servo  ${catkin_LIBRARIES} ${PROJECT_NAME})

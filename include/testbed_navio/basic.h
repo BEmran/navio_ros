@@ -4,8 +4,8 @@
  * Created on September 7, 2017, 1:14 PM
  */
 
-#ifndef NAVIO_BASIC
-#define NAVIO_BASIC
+#ifndef BASIC
+#define BASIC
 
 /*****************************************************************************************
 Header files
@@ -16,12 +16,8 @@ Header files
 #include <unistd.h>      // usleep
 #include <pthread.h>   // create thread
 
-#include "Navio/MPU9250.h"      // Navio mpu sensor
-#include "Navio/LSM9DS1.h"     // Navio lsm sensor
-#include "Navio/Util.h"                 // Navio Utility
-#include "Navio/PWM.h"             // Navio PWM output
-#include "lib/AHRS.hpp"              // Navio Mahony AHRS
-#include "lib/SamplingTime.h"    // samplig time
+#include "navio_interface.h"         // Navio io interfaces
+#include "lib/SamplingTime.h"      // Sampling time Class
 
 #include "ros/ros.h"
 #include "geometry_msgs/Vector3Stamped.h"   // for encodres msg
@@ -34,14 +30,6 @@ Global variables
 #define _SENSOR_FREQ 500        // Sensor thread frequency in Hz
 #define _CONTROL_FREQ 200     // Control thread frequency in Hz
 #define _ROS_FREQ 100                // ROS thread frequency in Hz
-#define _G_SI 9.80665
-#define _MOTOR1    0                // CH0 front motor
-#define _MOTOR2    1                // CH1 right motor
-#define _MOTOR3    2                // CH2 back motor
-#define _MOTOR4    3                // CH3 left motor
-#define _SERVO_MIN  1.0        // in mS
-#define _SERVO_MAX  2.0       // in mS
-#define _FREQ       50                 // in Hz
 #define _MAX_ROLL   0.3
 #define _MAX_PITCH  0.3
 #define _MAX_YAW    0.6
@@ -57,12 +45,6 @@ geometry_msgs::Vector3Stamped encoderes;
 /*****************************************************************************************
 Define structures
 ******************************************************************************************/
-struct imuStruct{
-    float gx, gy, gz;
-    float ax, ay, az;
-    float mx, my, mz;
-    float r, p, w;
-};
 struct dataStruct {
         float PWMval[4];
         float du[4];
@@ -82,12 +64,9 @@ void *sensorsThread(void *data);
 void *controlThread(void *data);
 void *rosNodeThread(void *data);
 void ctrlCHandler(int signal);
-InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name);
-void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt);
-void setPWMDuty(PWM* pwm, float uPWM[4]);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
 void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 
-#endif // NAVIO_BASIC
+#endif // BASIC
 
