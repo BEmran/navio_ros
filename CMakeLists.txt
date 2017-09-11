@@ -37,5 +37,5 @@ include_directories(
 add_executable(basic src/basic.cpp)
 target_link_libraries(basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(navio_control_roll_servo src/navio_control_roll_servo.cpp)
-target_link_libraries(navio_control_roll_servo  ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(control_gyro src/control_gyro.cpp)
+target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
