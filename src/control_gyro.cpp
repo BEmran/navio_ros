@@ -232,16 +232,17 @@ control: Perfourm control loop
 void control(dataStruct* data, float dt){
 
     static float ei = 0.0, ang0 = 0.0;
-    float kd[3]={1.5,1.5,1.5};
+    float kd[3]={0.1,0.1,0.4};
 
     // control signal
-    float ur = -data->imu.gx * kd[0]/10.0;
-    //data->du = -data->imu.gy * kd[1];
-    //data->du = -data->imu.gz * kd[2];
+    float ur = -data->imu.gx * kd[0];
+    float up = -data->imu.gy * kd[1];
+    float uy = -data->imu.gz * kd[2];
 
     // saturation
-    sat(ur,0.3,-0.3);
+    data->du[0] = sat(ur,0.3,-0.3);
+    data->du[1] = sat(up,0.3,-0.3);
+    data->du[2] = sat(uy,0.5,-0.5);
     // Send control signal
-    data->du[0] = ur;
     data->du[3] = 0.5;
 }
