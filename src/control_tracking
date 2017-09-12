@@ -233,16 +233,21 @@ void control(dataStruct* data, float dt){
 
     static float ei = 0.0, ang0 = 0.0;
     float kd[3]={0.4,0.4,0.8};
+    float e[3]; 
+    // error ssignal
+    e[0] = ang_cmd[0] - data->imu.r * 3.14 / 180;
+    e[1] = ang_cmd[1] - data->imu.p * 3.14 / 180;
+    e[2] = ang_cmd[2] - data->imu.w * 3.14 / 180;
 
     // control signal
-    float ur = -data->imu.gx * kd[0];
-    float up = -data->imu.gy * kd[1];
-    float uy = -data->imu.gz * kd[2];
+    float ur = -data->imu.gx * kd[0] - e[0] * 1.0;
+    float up = -data->imu.gy * kd[1] - e[1] * 1.0;
+    float uy = -data->imu.gz * kd[2] - e[2] * 2.0;
 
     // saturation
     data->du[0] = sat(ur,0.3,-0.3);
     data->du[1] = sat(up,0.3,-0.3);
     data->du[2] = sat(uy,0.5,-0.5);
     // Send control signal
-    data->du[3] = 0.3;
+    data->du[3] = 0.5;
 }
