@@ -1,0 +1,9 @@
+testbed:
+  control:
+    angle:
+      gains:
+        kd: {0.4,0.4,0.8}
+        kp: {1.0,1.0,2.0}
+        ki: {1.0,1.0,2.0}
+      type: 'lqi'
+

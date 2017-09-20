@@ -1,0 +1,6 @@
+<launch>
+    <!-- TF broadcaster Node -->
+    <node pkg="testbed_navio" type="control_tracking" name="control_tracking"/>
+	<rosparam command = "load" file="$(find testbed_navio)/parm/control_parameter.yml"> </rosparam>
+</launch>
+

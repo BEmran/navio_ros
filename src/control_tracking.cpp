@@ -41,14 +41,6 @@ int main(int argc, char** argv) {
 }
 
 /*****************************************************************************************
- ctrlCHandler: Detect ctrl+c to quit program
- ****************************************************************************************/
-void ctrlCHandler(int signal) {
-    _CloseRequested = true;
-    printf("Ctrl+c have been detected\n");
-}
-
-/*****************************************************************************************
  sensorsThread: read navio sensors (IMU +...) and perfourm AHRS
  *****************************************************************************************/
 void *sensorsThread(void *data) {
@@ -137,15 +129,49 @@ void *rosNodeThread(void *data) {
 
     //--------------------------------------- Initialize ROS ------------------------------------------
     ros::init(my_data->argc,my_data->argv,"navio_basic");
-    ros::NodeHandle n;
-    ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
-    ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
-    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encoderesCallback);
-    ros::Subscriber ang_cmd_sub = n.subscribe("testbed/cmd/angle", 1000, angCmdCallback);
+    ros::NodeHandle node;
+    ros::Publisher imu_pub = node.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
+    ros::Publisher du_pub = node.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
+    ros::Subscriber encoder_sub = node.subscribe("testbed/sensors/encoders", 1000, encodersCallback);
+    ros::Subscriber ang_cmd_sub = node.subscribe("testbed/cmd/angle", 1000, angCmdCallback);
     ros::Rate loop_rate(_ROS_FREQ);
     sensor_msgs::Imu imu_msg;
     geometry_msgs::TwistStamped du_msg;
 
+    //----------------------------------------  Get Parameter ---------------------------------------
+
+    if (node.hasParam("testbed/control/angle/gains/kp")){
+        node.getParam("testbed/control/angle/gains/kp", my_data->angCon.kp);
+        ROS_INFO("Found angle control kp gains: kp[0] %f, kp[1] %f, kp[2] %f\n",my_data->angCon.kp[0],my_data->angCon.kp[1],my_data->angCon.kp[2]);
+    }
+    else {
+        ROS_INFO("Can't find angle control kp gains");
+        my_data->angCon.kp.assign(0,0.4);
+        my_data->angCon.kp.assign(1,0.4);
+        my_data->angCon.kp.assign(2,0.8);
+    }
+
+    if (node.hasParam("testbed/control/angle/gains/ki")){
+        node.getParam("testbed/control/angle/gains/ki", my_data->angCon.ki);
+        ROS_INFO("Found angle control ki gains: ki[0] %f, ki[1] %f, ki[2] %f\n",my_data->angCon.ki[0],my_data->angCon.ki[1],my_data->angCon.ki[2]);
+    }
+    else {
+        ROS_INFO("Can't find angle control ki gains");
+        my_data->angCon.ki.assign(0,1.0);
+        my_data->angCon.ki.assign(1,1.0);
+        my_data->angCon.ki.assign(2,2.0);
+    }
+
+    if (node.hasParam("testbed/control/angle/gains/kd")){
+        node.getParam("testbed/control/angle/gains/kd", my_data->angCon.kd);
+        ROS_INFO("Found angle control kd gains: kd[0] %f, kd[1] %f, kd[2] %f\n",my_data->angCon.kd[0],my_data->angCon.kd[1],my_data->angCon.kd[2]);
+    }
+    else {
+        ROS_INFO("Can't find angle control kd gains");
+        my_data->angCon.kd.assign(0,1.0);
+        my_data->angCon.kd.assign(1,1.0);
+        my_data->angCon.kd.assign(2,2.0);
+    }
     //------------------------------------------  Main loop -------------------------------------------
     while (ros::ok() && !_CloseRequested)
     {
@@ -182,53 +208,6 @@ void *rosNodeThread(void *data) {
 }
 
 /*****************************************************************************************
- du2motor: map du to PWM and send signal to motors
- *****************************************************************************************/
-void du2motor(PWM* pwm, float du0, float du1, float du2, float du3) {
-
-    //---------------------------------- apply saturation for du -----------------------------------
-    float dr = sat(du0, _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
-    float dp = sat(du1, _MAX_PITCH  , -_MAX_PITCH   ) / 2.0;
-    float dw = sat(du2, _MAX_YAW    , -_MAX_YAW     ) / 4.0;
-    float dz = sat(du3, _MAX_Thrust , 0             ) / 1.0;
-
-    //----------------------------------------- du to PWM ------------------------------------------
-    float uPWM[4];
-    uPWM[0] = dz - dp - dw;
-    uPWM[1] = dz - dr + dw;
-    uPWM[2] = dz + dp - dw;
-    uPWM[3] = dz + dr + dw;
-
-    uPWM[0] = uPWM[0] + _SERVO_MIN;
-    uPWM[1] = uPWM[1] + _SERVO_MIN;
-    uPWM[2] = uPWM[2] + _SERVO_MIN;
-    uPWM[3] = uPWM[3] + _SERVO_MIN;
-    //---------------------------------- send PWM duty cycle ------------------------------------
-    setPWMDuty(pwm, uPWM);
-}
-
-/*****************************************************************************************
- sat: apply saturation
- *****************************************************************************************/
-float sat(float x, float upper, float lower) {
-    if (x <= lower)
-        x = lower;
-    else if (x >= upper)
-        x = upper;
-    return x;
-}
-
-/*****************************************************************************************
-encoderesCallback: Read encoders and map it to gloabal variable
-******************************************************************************************/
-void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
-{
-    encoderes.header = msg->header;
-    encoderes.vector = msg->vector;
-    // ROS_INFO("I heard: [%f]", encoderes.vector.x);
-}
-
-/*****************************************************************************************
 angCmdCallback: Read encoders and map it to gloabal variable
 ******************************************************************************************/
 void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
@@ -244,15 +223,12 @@ control: Perfourm control loop
 void control(dataStruct* data, float dt){
 
     static float ei[3] = {0.0, 0.0, 0.0};
-    float kd[3]={0.4,0.4,0.8};
-    float kp[3]={1.0,1.0,2.0};
-    float ki[3]={1.0,1.0,2.0};	
     float e[3];
     float cmd_max[3] = {0.1, 0.1, 0.5};
     float cmd_adj[3];
     float u_max[3] = {_MAX_ROLL,_MAX_PITCH,_MAX_YAW};
 //    float ang[3] = {data->imu.r,data->imu.p,data->imu.w};
-    float ang[3] = {encoderes.vector.x, encoderes.vector.y,encoderes.vector.z};
+    float ang[3] = {encoders.vector.x, encoders.vector.y,encoders.vector.z};
 
     float w[3] = {data->imu.gx,data->imu.gy,data->imu.gz};
     // LQR control
@@ -265,7 +241,7 @@ void control(dataStruct* data, float dt){
       e[i] = cmd_adj[i] - ang[i];
 
       // control signal
-      float tmp = -ang[i] * kp[i] - w[i] * kd[i] + ei[i] * ki[i];
+      float tmp = -ang[i] * data->angCon.kp[i] - w[i] * data->angCon.kd[i] + ei[i] * data->angCon.ki[i];
 
       // saturation
       data->du[i] = sat(tmp, u_max[i], -u_max[i]);
