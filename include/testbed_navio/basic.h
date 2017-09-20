@@ -40,19 +40,25 @@ bool _CloseRequested = false;
 pthread_t _Thread_Sensors;
 pthread_t _Thread_Control;
 pthread_t _Thread_RosNode;
-geometry_msgs::Vector3Stamped encoderes;
+geometry_msgs::Vector3Stamped encoders;
 
 /*****************************************************************************************
 Define structures
 ******************************************************************************************/
+struct controlStruct {
+        std::vector<double> kp;
+        std::vector<double> ki;
+        std::vector<double> kd;
+};
 struct dataStruct {
-        float PWMval[4];
+        float pwmVal[4];
         float du[4];
-        float encoderes[3];
+        float encoders[3];
         PWM pwm;
         imuStruct imu;
         InertialSensor *ins;
         AHRS ahrs;
+        controlStruct angCon;
         int argc;
         char** argv;
 };
@@ -66,7 +72,65 @@ void *rosNodeThread(void *data);
 void ctrlCHandler(int signal);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
-void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
+void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
+
+
+/*****************************************************************************************
+ ctrlCHandler: Detect ctrl+c to quit program
+ ****************************************************************************************/
+void ctrlCHandler(int signal) {
+    _CloseRequested = true;
+    printf("Ctrl+c have been detected\n");
+}
+
+/*****************************************************************************************
+ du2motor: map du to PWM and send signal to motors
+ *****************************************************************************************/
+void du2motor(PWM* pwm, float du0, float du1, float du2, float du3) {
+
+    //---------------------------------- apply saturation for du -----------------------------------
+    float dr = sat(du0, _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
+    float dp = sat(du1, _MAX_PITCH  , -_MAX_PITCH   ) / 2.0;
+    float dw = sat(du2, _MAX_YAW    , -_MAX_YAW     ) / 4.0;
+    float dz = sat(du3, _MAX_Thrust , 0             ) / 1.0;
+
+    //----------------------------------------- du to PWM ------------------------------------------
+    float uPWM[4];
+    uPWM[0] = dz - dp - dw;
+    uPWM[1] = dz - dr + dw;
+    uPWM[2] = dz + dp - dw;
+    uPWM[3] = dz + dr + dw;
+
+    uPWM[0] = uPWM[0] + _SERVO_MIN;
+    uPWM[1] = uPWM[1] + _SERVO_MIN;
+    uPWM[2] = uPWM[2] + _SERVO_MIN;
+    uPWM[3] = uPWM[3] + _SERVO_MIN;
+    //---------------------------------- send PWM duty cycle ------------------------------------
+    setPWMDuty(pwm, uPWM);
+}
+
+/*****************************************************************************************
+ sat: apply saturation
+ *****************************************************************************************/
+float sat(float x, float upper, float lower) {
+    if (x <= lower)
+        x = lower;
+    else if (x >= upper)
+        x = upper;
+    return x;
+}
+
+/*****************************************************************************************
+encodersCallback: Read encoders and map it to gloabal variable
+******************************************************************************************/
+void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+{
+    encoders.header = msg->header;
+    encoders.vector = msg->vector;
+}
+
 
 #endif // BASIC
+
+
 

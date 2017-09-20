@@ -39,14 +39,6 @@ int main(int argc, char** argv) {
 }
 
 /*****************************************************************************************
- ctrlCHandler: Detect ctrl+c to quit program
- ****************************************************************************************/
-void ctrlCHandler(int signal) {
-    _CloseRequested = true;
-    printf("Ctrl+c have been detected\n");
-}
-
-/*****************************************************************************************
  sensorsThread: read navio sensors (IMU +...) and perfourm AHRS
  *****************************************************************************************/
 void *sensorsThread(void *data) {
@@ -137,7 +129,7 @@ void *rosNodeThread(void *data) {
     ros::NodeHandle n;
     ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
-    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encoderesCallback);
+    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encodersCallback);
     ros::Rate loop_rate(_ROS_FREQ);
     sensor_msgs::Imu imu_msg;
     geometry_msgs::TwistStamped du_msg;
@@ -175,51 +167,4 @@ void *rosNodeThread(void *data) {
     ctrlCHandler(0);
     printf("Exit ROS Node thread\n");
     pthread_exit(NULL);
-}
-
-/*****************************************************************************************
- du2motor: map du to PWM and send signal to motors
- *****************************************************************************************/
-void du2motor(PWM* pwm, float du0, float du1, float du2, float du3) {
-
-    //---------------------------------- apply saturation for du -----------------------------------
-    float dr = sat(du0, _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
-    float dp = sat(du1, _MAX_PITCH  , -_MAX_PITCH   ) / 2.0;
-    float dw = sat(du2, _MAX_YAW    , -_MAX_YAW     ) / 4.0;
-    float dz = sat(du3, _MAX_Thrust , 0             ) / 1.0;
-
-    //----------------------------------------- du to PWM ------------------------------------------
-    float uPWM[4];
-    uPWM[0] = dz - dp - dw;
-    uPWM[1] = dz - dr + dw;
-    uPWM[2] = dz + dp - dw;
-    uPWM[3] = dz + dr + dw;
-
-    uPWM[0] = uPWM[0] + _SERVO_MIN;
-    uPWM[1] = uPWM[1] + _SERVO_MIN;
-    uPWM[2] = uPWM[2] + _SERVO_MIN;
-    uPWM[3] = uPWM[3] + _SERVO_MIN;
-    //---------------------------------- send PWM duty cycle ------------------------------------
-    setPWMDuty(pwm, uPWM);
-}
-
-/*****************************************************************************************
- sat: apply saturation
- *****************************************************************************************/
-float sat(float x, float upper, float lower) {
-    if (x <= lower)
-        x = lower;
-    else if (x >= upper)
-        x = upper;
-    return x;
-}
-
-/*****************************************************************************************
-encoderesCallback: Read encoders and map it to gloabal variable
-******************************************************************************************/
-void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
-{
-    encoderes.header = msg->header;
-    encoderes.vector = msg->vector;
-    // ROS_INFO("I heard: [%f]", encoderes.vector.x);
 }
