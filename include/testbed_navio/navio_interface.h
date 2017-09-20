@@ -16,7 +16,7 @@ Header files
 #include "Navio/PWM.h"             // Navio PWM output
 #include "lib/AHRS.hpp"             // Navio Mahony AHRS
 #include <stdio.h>                       // printf
-
+#include <cmath>                        // math function and variables
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/

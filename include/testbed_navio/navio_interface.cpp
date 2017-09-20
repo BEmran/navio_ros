@@ -110,9 +110,35 @@ void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt) {
     //imu->mx, imu->my, -imu->mz, dt);
 
     //------------------------------------ Read Euler angles ---------------------------------------
-    ahrs->getEuler(&imu->r, &imu->p, &imu->w);
-
+    ahrs->getEulerRad(&imu->r, &imu->p, &imu->w);
 }
+
+/*****************************************************************************************
+ gyroCalibrate: calibrate gyro sensor
+*****************************************************************************************/
+void imuFiltering(InertialSensor *ins, AHRS *ahrs) {
+    //------------------------------------- Calibrate gyro ------------------------------------------
+    printf("Beginning Gyro calibration...\n");
+    float gx, gy, gz;
+    float offset[3] = {0.0, 0.0, 0.0};
+    int i_max = 1000;
+    for (int i = 0; i < i_max; i++) {
+        ins->update();
+        ins->read_gyroscope(&gx, &gy, &gz);
+        offset[0] += -gy;		// rotating gyro axis by rotating +90 around z-axis gx = gy
+        offset[1] += -(-1*gx);	// gy = gx * -1
+        offset[2] += -gz;
+        usleep(10000);
+    }
+    offset[0] /= i_max;
+    offset[1] /= i_max;
+    offset[2] /= i_max;
+
+    //----------------------------- Set & display offset result ------------------------------------
+    printf("Offsets are: %f %f %f\n", offset[0], offset[1], offset[2]);
+    ahrs->setGyroOffset(offset[0], offset[1], offset[2]);
+}
+
 
 /*****************************************************************************************
  setPWMADuty: send PWM signal to motor
