@@ -39,3 +39,6 @@ target_link_libraries(basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 add_executable(control_gyro src/control_gyro.cpp)
 target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+add_executable(control_tracking src/control_tracking.cpp)
+target_link_libraries(control_tracking  ${catkin_LIBRARIES} ${PROJECT_NAME})

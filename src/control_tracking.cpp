@@ -5,7 +5,8 @@
  */
 #include "testbed_navio/basic.h"
 void control(dataStruct* data, float dt);
-
+void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
+float ang_cmd[3]={0.0,0.0,0.0};
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/
@@ -140,6 +141,7 @@ void *rosNodeThread(void *data) {
     ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
     ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encoderesCallback);
+    ros::Subscriber ang_cmd_sub = n.subscribe("testbed/cmd/angle", 1000, angCmdCallback);
     ros::Rate loop_rate(_ROS_FREQ);
     sensor_msgs::Imu imu_msg;
     geometry_msgs::TwistStamped du_msg;
@@ -227,27 +229,50 @@ void encoderesCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
 }
 
 /*****************************************************************************************
+angCmdCallback: Read encoders and map it to gloabal variable
+******************************************************************************************/
+void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+{
+    ang_cmd[0] = msg->vector.x;
+    ang_cmd[1] = msg->vector.y;
+    ang_cmd[2] = msg->vector.z;
+}
+
+/*****************************************************************************************
 control: Perfourm control loop
 ******************************************************************************************/
 void control(dataStruct* data, float dt){
 
-    static float ei = 0.0, ang0 = 0.0;
+    static float ei[3] = {0.0, 0.0, 0.0};
     float kd[3]={0.4,0.4,0.8};
-    float e[3]; 
-    // error ssignal
-    e[0] = ang_cmd[0] - data->imu.r * 3.14 / 180;
-    e[1] = ang_cmd[1] - data->imu.p * 3.14 / 180;
-    e[2] = ang_cmd[2] - data->imu.w * 3.14 / 180;
+    float kp[3]={1.0,1.0,2.0};
+    float ki[3]={1.0,1.0,2.0};	
+    float e[3];
+    float cmd_max[3] = {0.1, 0.1, 0.5};
+    float cmd_adj[3];
+    float u_max[3] = {_MAX_ROLL,_MAX_PITCH,_MAX_YAW};
+//    float ang[3] = {data->imu.r,data->imu.p,data->imu.w};
+    float ang[3] = {encoderes.vector.x, encoderes.vector.y,encoderes.vector.z};
 
-    // control signal
-    float ur = -data->imu.gx * kd[0] - e[0] * 1.0;
-    float up = -data->imu.gy * kd[1] - e[1] * 1.0;
-    float uy = -data->imu.gz * kd[2] - e[2] * 2.0;
+    float w[3] = {data->imu.gx,data->imu.gy,data->imu.gz};
+    // LQR control
+    for (int i = 0; i < 3; i++)
+    {
+      // adjust cmd
+      cmd_adj[i] = sat(ang_cmd[i], ang[i] + cmdMax[i], ang[i] - cmdMax[i]);
 
-    // saturation
-    data->du[0] = sat(ur,0.3,-0.3);
-    data->du[1] = sat(up,0.3,-0.3);
-    data->du[2] = sat(uy,0.5,-0.5);
+      // traking error
+      e[i] = cmd_adj[i] - ang[i];
+
+      // control signal
+      float tmp = -ang[i] * kp[i] - w[i] * kd[i] + ei[i] * ki[i];
+
+      // saturation
+      data->du[i] = sat(tmp, u_max[i], -u_max[i]);
+
+      // integration
+      ei[i] += e[i] * dt;
+    }
     // Send control signal
     data->du[3] = 0.5;
 }
