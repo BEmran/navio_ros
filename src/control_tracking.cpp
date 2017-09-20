@@ -259,7 +259,7 @@ void control(dataStruct* data, float dt){
     for (int i = 0; i < 3; i++)
     {
       // adjust cmd
-      cmd_adj[i] = sat(ang_cmd[i], ang[i] + cmdMax[i], ang[i] - cmdMax[i]);
+      cmd_adj[i] = sat(ang_cmd[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
 
       // traking error
       e[i] = cmd_adj[i] - ang[i];
