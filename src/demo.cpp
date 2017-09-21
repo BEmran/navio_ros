@@ -5,6 +5,7 @@
  */
 #include "testbed_navio/basic.h"
 float du_cmd[4]={0.0,0.0,0.0,0.0};
+void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/
@@ -177,7 +178,7 @@ void *rosNodeThread(void *data) {
 /*****************************************************************************************
 duCmdCallback: Read cmanded du values and map it to gloabal variable
 ******************************************************************************************/
-void angCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
+void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
 {
     du_cmd[0] = msg->twist.angular.x;
     du_cmd[1] = msg->twist.angular.y;
