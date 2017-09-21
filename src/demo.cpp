@@ -183,5 +183,5 @@ void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
     du_cmd[0] = msg->twist.angular.x;
     du_cmd[1] = msg->twist.angular.y;
     du_cmd[2] = msg->twist.angular.z;
-    du_cmd[3] = msg->twist.linear.x;
+    du_cmd[3] = msg->twist.linear.z;
 }
