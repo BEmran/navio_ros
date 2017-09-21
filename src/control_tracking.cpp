@@ -224,7 +224,7 @@ void control(dataStruct* data, float dt){
 
     static float ei[3] = {0.0, 0.0, 0.0};
     float e[3];
-    float cmd_max[3] = {0.1, 0.1, 0.5};
+    float cmd_max[3] = {0.15, 0.15, 0.5};
     float cmd_adj[3];
     float u_max[3] = {_MAX_ROLL,_MAX_PITCH,_MAX_YAW};
 //    float ang[3] = {data->imu.r,data->imu.p,data->imu.w};
