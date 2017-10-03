@@ -130,8 +130,8 @@ void *rosNodeThread(void *data) {
     int queue_size = 10;
     ros::NodeHandle n;
     ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", queue_size);
-    ros::Publisher mag_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/mag", queue_size);
-    ros::Publisher rpy_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/rpy/filtered", queue_size);
+    ros::Publisher mag_pub = n.advertise <sensor_msgs::MagneticField>("testbed/sensors/mag", queue_size);
+    ros::Publisher rpy_pub = n.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/rpy/filtered", queue_size);
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
     ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", queue_size, encodersCallback);
     ros::Rate loop_rate(_ROS_FREQ);
