@@ -50,7 +50,7 @@ void *sensorsThread(void *data) {
 
     //----------------------------------------  Initialize IMU ----------------------------------------
     char imu_name[] = "mpu";
-    my_data->ins = imuSetup(&my_data->ahrs, imu_name);
+    my_data->ins = imuSetup(&my_data->ahrs, imu_name, &my_data->imu);
     if (my_data->ins == NULL) {
         printf("Cannot initialize imu sensor\n");
         pthread_exit(NULL);

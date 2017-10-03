@@ -47,7 +47,7 @@ void *sensorsThread(void *data) {
 
     //----------------------------------------  Initialize IMU ----------------------------------------
     char imu_name[] = "mpu";
-    my_data->ins = imuSetup(&my_data->ahrs, imu_name);
+    my_data->ins = imuSetup(&my_data->ahrs, imu_name, &my_data->imu);
     if (my_data->ins == NULL) {
         printf("Cannot initialize imu sensor\n");
         pthread_exit(NULL);
@@ -62,7 +62,8 @@ void *sensorsThread(void *data) {
 
         //-------------------------------------- Read Sensor ---------------------------------------
         getIMU(my_data->ins, &my_data->imu);
-        doAHRS(&my_data->ahrs, &my_data->imu, dt);
+        //doAHRS(&my_data->ahrs, &my_data->imu, dt);
+        doComplementaryFilter(&my_data->comp_filter_, &my_data->imu, dt);
         dtsumm += dt;
         if (dtsumm > 1) {
             dtsumm = 0;

@@ -39,15 +39,18 @@ struct imuStruct{
     float ax, ay, az;
     float mx, my, mz;
     float r, p, w;
+    float mag_offset[3];
+    float mag_scale[3];
 };
 
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
-InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name);
+InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name, imuStruct* imu);
 void getIMU(InertialSensor *ins, imuStruct* imu);
 void doAHRS(AHRS *ahrs, imuStruct* imu, float dt);
 void gyroCalibrate(InertialSensor *ins, AHRS *ahrs);
+void magCalibrate(InertialSensor *ins,float mag_offset[3], float mag_scale[3]);
 void setPWMDuty(PWM* pwm, float uPWM[4]);
 void initializePWM(PWM* pwm);
 float sat(float x, float upper, float lower);

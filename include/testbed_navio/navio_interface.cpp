@@ -31,7 +31,7 @@ void initializePWM(PWM *pwm) {
 /*****************************************************************************************
  imuSetup: Initialize IMU sensor and calibrate gyro sensor
 *****************************************************************************************/
-InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name) {
+InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name, imuStruct* imu) {
     InertialSensor* ins;
     //--------------------------------------- Create IMU --------------------------------------------
     if (!strcmp(sensor_name, "mpu")) {
@@ -50,7 +50,12 @@ InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name) {
     //------------------------------------- Calibrate gyro ------------------------------------------
     gyroCalibrate(ins, ahrs);
 
+    //------------------------------------- Calibrate mag ------------------------------------------
+    printf("Start moving the testbed around...\n");
+    sleep(2);
+    magCalibrate(ins,imu->mag_offset,imu->mag_scale);
     //----------------------------------- Return INS object ---------------------------------------
+
     return ins;
 }
 /*****************************************************************************************
@@ -68,7 +73,7 @@ void gyroCalibrate(InertialSensor *ins, AHRS *ahrs) {
         offset[0] += -gy;		// rotating gyro axis by rotating +90 around z-axis gx = gy
         offset[1] += -(-1*gx);	// gy = gx * -1
         offset[2] += -gz;
-        usleep(10000);
+        usleep(5000);
     }
     offset[0] /= i_max;
     offset[1] /= i_max;
@@ -77,6 +82,54 @@ void gyroCalibrate(InertialSensor *ins, AHRS *ahrs) {
     //----------------------------- Set & display offset result ------------------------------------
     printf("Offsets are: %f %f %f\n", offset[0], offset[1], offset[2]);
     ahrs->setGyroOffset(offset[0], offset[1], offset[2]);
+}
+
+/*****************************************************************************************
+ magCalibrate: calibrate magntic sensor
+*****************************************************************************************/
+void magCalibrate(InertialSensor *ins,float mag_bias[3], float mag_scale[3]) {
+    //------------------------------------- Calibrate gyro ------------------------------------------
+    printf("Beginning Mag calibration...\n");
+    int i_max = 1000;
+    float mag_max[3] = {-32767, -32767, -32767};
+    float mag_min[3] = {32767, 32767, 32767};
+    float mag_temp[3] = {0, 0, 0};
+    float dest2[3];
+    for (int i = 0; i < i_max; i++) {
+        ins->update();
+        ins->read_magnetometer(&mag_temp[0], &mag_temp[1], &mag_temp[2]);
+        float tmp = mag_temp[0];
+        mag_temp[0] = mag_temp[1];
+        mag_temp[1] = -tmp;
+
+        for (int j= 0; j < 3; j++) {
+            if(mag_temp[j] > mag_max[j])
+                mag_max[j] = mag_temp[j];
+            if(mag_temp[j] < mag_min[j])
+                mag_min[j] = mag_temp[j];
+        }
+        usleep(10000);
+    }
+
+    // Get correction
+    for (int j= 0; j < 3; j++) {
+        // hard iron correction estimate
+        mag_bias[j]  = (mag_max[j] + mag_min[j])/2;  // get average j mag bias in counts
+        // Soft iron correction estimate
+        mag_scale[j]  = (mag_max[j] - mag_min[j])/2;  // get average j axis max chord length in counts
+    }
+
+    float avg_rad = (mag_scale[0] + mag_scale[1] + mag_scale[2])/3.0;
+
+    dest2[0] = avg_rad/(mag_scale[0]);
+    dest2[1] = avg_rad/(mag_scale[1]);
+    dest2[2] = avg_rad/(mag_scale[2]);
+
+    //----------------------------- Set & display offset result ------------------------------------
+    printf("mag_bias are: %f %f %f\n", mag_bias[0], mag_bias[1], mag_bias[2]);
+    printf("mag_scale are: %f %f %f\n", mag_scale[0], mag_scale[1], mag_scale[2]);
+    printf("avg_rad is: %f\n", avg_rad);
+    printf("dest2 are: %f %f %f\n", dest2[0], dest2[1], dest2[2]);
 }
 
 /*****************************************************************************************
@@ -180,7 +233,7 @@ void doAHRS(AHRS *ahrs, imuStruct* imu, float dt) {
 *****************************************************************************************/
 void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruct* imu, float dt){
 
-     //------------------------------------- Update the filter ----------------------------------------
+    //------------------------------------- Update the filter ----------------------------------------
     comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,imu->mx, imu->my, -imu->mz, dt);
 
     //------------------------------------ Get the orientation ---------------------------------------
