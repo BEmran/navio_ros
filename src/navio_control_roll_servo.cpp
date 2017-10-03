@@ -3,7 +3,7 @@
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
-#include "../include/testbed_navio/navio_basic.h"
+#include "testbed_navio/basic.h"
 float cmd_ang[3] = {0.0,0.0,0.0};
 void control(dataStruct* data, float dt);
 void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
@@ -352,7 +352,7 @@ void control(dataStruct* data, float dt){
     // traking error
     float e = cmd_ang[0] - encoderes.vector.x;
     // control signal
-    float ur = - e * k1 - angdot * k2 + ei * ki;
+    float ur = - e * k1 - data->imu.gx * k2 + ei * ki;
     ei += e * dt;
     // saturation
     if (ur > 0.3)

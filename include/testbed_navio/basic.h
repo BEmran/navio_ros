@@ -22,8 +22,9 @@ Header files
 #include "ros/ros.h"
 #include "geometry_msgs/Vector3Stamped.h"   // for encodres msg
 #include "geometry_msgs/TwistStamped.h"       // for du msg
-#include "sensor_msgs/Imu.h"                              // for sensor msg
-
+#include "sensor_msgs/Imu.h"                              // for IMU sensor msg
+#include "sensor_msgs/MagneticField.h"            // for Magnetic sensor msg
+#include "tf/transform_datatypes.h"                     // for tf::Quaternion
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -61,6 +62,7 @@ struct dataStruct {
         controlStruct angCon;
         int argc;
         char** argv;
+        imu_tools::ComplementaryFilter comp_filter_;
 };
 
 /*****************************************************************************************
@@ -73,7 +75,7 @@ void ctrlCHandler(int signal);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
 void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
-
+void initializeParams(ros::NodeHandle& n, imu_tools::ComplementaryFilter& comp_filter_);
 
 /*****************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
@@ -129,6 +131,40 @@ void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
     encoders.vector = msg->vector;
 }
 
+/*****************************************************************************************
+initializeParams:
+******************************************************************************************/
+void initializeParams(ros::NodeHandle& n, imu_tools::ComplementaryFilter& comp_filter_){
+    double gain_acc;
+    double gain_mag;
+    bool do_bias_estimation;
+    double bias_alpha;
+    bool do_adaptive_gain;
+
+    if (!n.getParam ("gain_acc", gain_acc))
+        gain_acc = 0.01;
+    if (!n.getParam ("gain_mag", gain_mag))
+        gain_mag = 0.01;
+    if (!n.getParam ("do_bias_estimation", do_bias_estimation))
+        do_bias_estimation = true;
+    if (!n.getParam ("bias_alpha", bias_alpha))
+        bias_alpha = 0.01;
+    if (!n.getParam ("do_adaptive_gain", do_adaptive_gain))
+        do_adaptive_gain = true;
+
+    comp_filter_.setDoBiasEstimation(do_bias_estimation);
+    comp_filter_.setDoAdaptiveGain(do_adaptive_gain);
+
+    if(!comp_filter_.setGainAcc(gain_acc))
+        ROS_WARN("Invalid gain_acc passed to ComplementaryFilter.");
+    if(!comp_filter_.setGainMag(gain_mag))
+        ROS_WARN("Invalid gain_mag passed to ComplementaryFilter.");
+    if (do_bias_estimation)
+    {
+        if(!comp_filter_.setBiasAlpha(bias_alpha))
+            ROS_WARN("Invalid bias_alpha passed to ComplementaryFilter.");
+    }
+}
 
 #endif // BASIC
 

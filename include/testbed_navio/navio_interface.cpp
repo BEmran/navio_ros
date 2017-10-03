@@ -82,7 +82,7 @@ void gyroCalibrate(InertialSensor *ins, AHRS *ahrs) {
 /*****************************************************************************************
  getIMU: Read IMU and update AHRS
 *****************************************************************************************/
-void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt) {
+void getIMU(InertialSensor *ins, imuStruct* imu) {
 
     //-------- Read raw measurements from the MPU and update AHRS --------------
     ins->update();
@@ -92,25 +92,15 @@ void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt) {
 
     //----------------- Rotating gyro axis by rotating +90 around z-axis -------------------
     float tmpgx = imu->gx, tmpax = imu->ax;
-    imu->gx = imu->gy; 	          		// gx = gy
-    imu->gy = -tmpgx;				// gy = -1 * gx
+    imu->gx = imu->gy;				// gx = gy
+    imu->gy = -tmpgx;		  		// gy = -1 * gx
     imu->ax = imu->ay;				// ax = ay
-    imu->ay = -tmpax;				// ay = -1 * ax
+    imu->ay = -tmpax;			  	// ay = -1 * ax
 
     //------------ Scale Accelerometer measurement by dividing by 9.81---------------
     imu->ax /= _G_SI;
     imu->ay /= _G_SI;
     imu->az /= _G_SI;
-
-    //--------------------- Perfourm AHRS for Accelerometer + Gyro -----------------------
-    ahrs->updateIMU(imu->ax, imu->ay, imu->az, imu->gx, imu->gy, imu->gz, dt);
-
-    //------------ Perfourm AHRS for Accelerometer + Gyro + Magnetometer ---------
-    //ahrs->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,
-    //imu->mx, imu->my, -imu->mz, dt);
-
-    //------------------------------------ Read Euler angles ---------------------------------------
-    ahrs->getEulerRad(&imu->r, &imu->p, &imu->w);
 }
 
 /*****************************************************************************************
@@ -166,4 +156,53 @@ float sat(float x, float upper, float lower) {
     else if (x >= upper)
         x = upper;
     return x;
+}
+
+/*****************************************************************************************
+ doAHRS: perfourm AHRS
+*****************************************************************************************/
+void doAHRS(AHRS *ahrs, imuStruct* imu, float dt) {
+
+    //--------------------- Perfourm AHRS for Accelerometer + Gyro -----------------------
+    ahrs->updateIMU(imu->ax, imu->ay, imu->az, imu->gx, imu->gy, imu->gz, dt);
+
+    //------------ Perfourm AHRS for Accelerometer + Gyro + Magnetometer ---------
+    //ahrs->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,
+    //imu->mx, imu->my, -imu->mz, dt);
+
+    //------------------------------------ Read Euler angles ---------------------------------------
+    ahrs->getEulerRad(&imu->r, &imu->p, &imu->w);
+}
+
+
+/*****************************************************************************************
+ doComplementaryFilter: perfourm Complementary Filter
+*****************************************************************************************/
+void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruct* imu, float dt){
+
+     //------------------------------------- Update the filter ----------------------------------------
+    comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,imu->mx, imu->my, -imu->mz, dt);
+
+    //------------------------------------ Get the orientation ---------------------------------------
+    double q0, q1, q2, q3;
+    comp_filter->getOrientation(q0, q1, q2, q3);
+    Quaternion2Euler(imu->r,imu->p,imu->w,q1, q2, q3, q0);
+
+    //------------------------------------ Account for biases ---------------------------------------
+    if (comp_filter->getDoBiasEstimation())
+    {
+        imu->gx -= comp_filter->getAngularVelocityBiasX();
+        imu->gy -= comp_filter->getAngularVelocityBiasY();
+        imu->gz -= comp_filter->getAngularVelocityBiasZ();
+    }
+}
+
+/*****************************************************************************************
+ Quaternion2Euler: convert Quaternion two Euler angles in rad
+*****************************************************************************************/
+void Quaternion2Euler(float& roll, float& pitch, float& yaw, float q0, float q1, float q2, float q3)
+{
+    roll = atan2(2*(q0*q1+q2*q3), 1-2*(q1*q1+q2*q2));
+    pitch = asin(2*(q0*q2-q3*q1));
+    yaw = atan2(2*(q0*q3+q1*q2), 1-2*(q2*q2+q3*q3));
 }

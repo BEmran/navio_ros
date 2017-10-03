@@ -4,7 +4,6 @@
  * Created on September 7, 2017, 1:11 PM
  */
 #include "testbed_navio/basic.h"
-
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/
@@ -62,7 +61,8 @@ void *sensorsThread(void *data) {
         dt = st.tsCalculat();
 
         //-------------------------------------- Read Sensor ---------------------------------------
-        getIMU(my_data->ins, &my_data->ahrs, &my_data->imu, dt);
+        getIMU(my_data->ins, &my_data->imu);
+        doAHRS(&my_data->ahrs, &my_data->imu, dt);
         dtsumm += dt;
         if (dtsumm > 1) {
             dtsumm = 0;
@@ -126,19 +126,29 @@ void *rosNodeThread(void *data) {
 
     //--------------------------------------- Initialize ROS ------------------------------------------
     ros::init(my_data->argc,my_data->argv,"navio_basic");
+    int queue_size = 10;
     ros::NodeHandle n;
-    ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", 1000);
-    ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", 1000);
-    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", 1000, encodersCallback);
+    ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", queue_size);
+    ros::Publisher mag_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/mag", queue_size);
+    ros::Publisher rpy_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/rpy/filtered", queue_size);
+    ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
+    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", queue_size, encodersCallback);
     ros::Rate loop_rate(_ROS_FREQ);
+
     sensor_msgs::Imu imu_msg;
+    sensor_msgs::MagneticField mag_msg;
+    geometry_msgs::Vector3Stamped rpy_msg;
     geometry_msgs::TwistStamped du_msg;
+    initializeParams(n,my_data->comp_filter_);
 
     //------------------------------------------  Main loop -------------------------------------------
     while (ros::ok() && !_CloseRequested)
     {
-        imu_msg.header.stamp = ros::Time::now();
-        imu_msg.header.seq++;
+        std_msgs::Header header;
+        header.stamp = ros::Time::now();
+        header.seq++;
+
+        imu_msg.header = header;
         imu_msg.angular_velocity.x = my_data->imu.gx;
         imu_msg.angular_velocity.y = my_data->imu.gy;
         imu_msg.angular_velocity.z = my_data->imu.gz;
@@ -151,8 +161,19 @@ void *rosNodeThread(void *data) {
         imu_msg.orientation.w = my_data->ahrs.getW();
         imu_pub.publish(imu_msg);
 
-        du_msg.header.stamp = ros::Time::now();
-        du_msg.header.seq++;
+        mag_msg.header = header;
+        mag_msg.magnetic_field.x = my_data->imu.mx;
+        mag_msg.magnetic_field.y = my_data->imu.my;
+        mag_msg.magnetic_field.z = my_data->imu.mz;
+        mag_pub.publish(mag_msg);
+
+        rpy_msg.header = header;
+        rpy_msg.vector.x = my_data->imu.r;
+        rpy_msg.vector.y = my_data->imu.p;
+        rpy_msg.vector.z = my_data->imu.w;
+        rpy_pub.publish(rpy_msg);
+
+        du_msg.header = header;
         du_msg.twist.angular.x = my_data->du[0];
         du_msg.twist.angular.y = my_data->du[1];
         du_msg.twist.angular.z = my_data->du[2];

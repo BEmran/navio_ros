@@ -17,6 +17,8 @@ Header files
 #include "lib/AHRS.hpp"             // Navio Mahony AHRS
 #include <stdio.h>                       // printf
 #include <cmath>                        // math function and variables
+#include "lib/complementary_filter.h"
+
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -38,15 +40,18 @@ struct imuStruct{
     float mx, my, mz;
     float r, p, w;
 };
+
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
 InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name);
-void getIMU(InertialSensor *ins, AHRS *ahrs, imuStruct* imu, float dt);
+void getIMU(InertialSensor *ins, imuStruct* imu);
+void doAHRS(AHRS *ahrs, imuStruct* imu, float dt);
 void gyroCalibrate(InertialSensor *ins, AHRS *ahrs);
 void setPWMDuty(PWM* pwm, float uPWM[4]);
 void initializePWM(PWM* pwm);
 float sat(float x, float upper, float lower);
-
+void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruct* imu, float dt);
+void Quaternion2Euler(float& roll, float& pitch, float& yaw, float q0, float q1, float q2, float q3);
 #endif // NAVIO_INTERFACE
 

@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME}
   include/Navio/LSM9DS1.cpp
   include/lib/SamplingTime.cpp
   include/${PROJECT_NAME}/navio_interface.cpp
+  include/lib/complementary_filter.cpp
 )
 
 ## Specify additional locations of header files

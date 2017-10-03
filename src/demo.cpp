@@ -63,7 +63,8 @@ void *sensorsThread(void *data) {
         dt = st.tsCalculat();
 
         //-------------------------------------- Read Sensor ---------------------------------------
-        getIMU(my_data->ins, &my_data->ahrs, &my_data->imu, dt);
+        getIMU(my_data->ins, &my_data->imu);
+        doAHRS(&my_data->ahrs, &my_data->imu, dt);
         dtsumm += dt;
         if (dtsumm > 1) {
             dtsumm = 0;
