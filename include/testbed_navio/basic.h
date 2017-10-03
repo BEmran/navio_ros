@@ -24,7 +24,6 @@ Header files
 #include "geometry_msgs/TwistStamped.h"       // for du msg
 #include "sensor_msgs/Imu.h"                              // for IMU sensor msg
 #include "sensor_msgs/MagneticField.h"            // for Magnetic sensor msg
-#include "tf/transform_datatypes.h"                     // for tf::Quaternion
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
