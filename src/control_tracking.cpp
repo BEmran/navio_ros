@@ -242,7 +242,7 @@ void control(dataStruct* data, float dt){
       e[i] = cmd_adj[i] - ang[i];
 
       // control signal
-      float tmp = -ang[i] * data->angCon.kp[i] - w[i] * data->angCon.kd[i] + ei[i] * data->angCon.ki[i];
+      float tmp = e[i] * data->angCon.kp[i] - w[i] * data->angCon.kd[i] + ei[i] * data->angCon.ki[i];
 
       // saturation
       data->du[i] = sat(tmp, u_max[i], -u_max[i]);
