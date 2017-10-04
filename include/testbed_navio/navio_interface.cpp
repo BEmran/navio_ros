@@ -225,6 +225,10 @@ void doAHRS(AHRS *ahrs, imuStruct* imu, float dt) {
 
     //------------------------------------ Read Euler angles ---------------------------------------
     ahrs->getEulerRad(&imu->r, &imu->p, &imu->w);
+    imu->qx = ahrs->getX();
+    imu->qy = ahrs->getY();
+    imu->qz = ahrs->getZ();
+    imu->qw = ahrs->getW();
 }
 
 
@@ -239,6 +243,10 @@ void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruc
     //------------------------------------ Get the orientation ---------------------------------------
     double q0, q1, q2, q3;
     comp_filter->getOrientation(q0, q1, q2, q3);
+    imu->qx = q1;
+    imu->qy = q2;
+    imu->qz = q3;
+    imu->qw = q0;
     Quaternion2Euler(imu->r,imu->p,imu->w,q1, q2, q3, q0);
 
     //------------------------------------ Account for biases ---------------------------------------

@@ -156,10 +156,10 @@ void *rosNodeThread(void *data) {
         imu_msg.linear_acceleration.x = my_data->imu.ax;
         imu_msg.linear_acceleration.y = my_data->imu.ay;
         imu_msg.linear_acceleration.z = my_data->imu.az;
-        imu_msg.orientation.x = my_data->ahrs.getX();
-        imu_msg.orientation.y = my_data->ahrs.getY();
-        imu_msg.orientation.z = my_data->ahrs.getZ();
-        imu_msg.orientation.w = my_data->ahrs.getW();
+        imu_msg.orientation.x = my_data->imu.qx();
+        imu_msg.orientation.y = my_data->imu.qy();
+        imu_msg.orientation.z = my_data->imu.qz();
+        imu_msg.orientation.w = my_data->imu.qw();
         imu_pub.publish(imu_msg);
 
         mag_msg.header = header;

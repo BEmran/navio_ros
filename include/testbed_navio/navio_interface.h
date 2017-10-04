@@ -39,6 +39,7 @@ struct imuStruct{
     float ax, ay, az;
     float mx, my, mz;
     float r, p, w;
+    float qx, qy, qz, qw;
     float mag_offset[3];
     float mag_scale[3];
 };
