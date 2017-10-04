@@ -136,7 +136,6 @@ void magCalibrate(InertialSensor *ins,float mag_bias[3], float mag_scale[3]) {
  getIMU: Read IMU and update AHRS
 *****************************************************************************************/
 void getIMU(InertialSensor *ins, imuStruct* imu) {
-
     //-------- Read raw measurements from the MPU and update AHRS --------------
     ins->update();
     ins->read_accelerometer(&imu->ax, &imu->ay, &imu->az);

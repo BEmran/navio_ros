@@ -62,6 +62,7 @@ struct dataStruct {
         int argc;
         char** argv;
         imu_tools::ComplementaryFilter comp_filter_;
+	bool is_sensor_ready;
 };
 
 /*****************************************************************************************

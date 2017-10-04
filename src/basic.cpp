@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
     struct dataStruct data;
     data.argc = argc;
     data.argv = argv;
+    data.is_sensor_ready = false;
 
     //----------------------------------------- Start threads ---------------------------------------
     pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
@@ -53,7 +54,7 @@ void *sensorsThread(void *data) {
         pthread_exit(NULL);
     }
     printf("Initialized imu sensor\n");
-
+    my_data->is_sensor_ready = true;
     //------------------------------------------  Main loop ------------------------------------------
     SamplingTime st(_SENSOR_FREQ);
     float dt, dtsumm = 0;
@@ -135,13 +136,13 @@ void *rosNodeThread(void *data) {
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
     ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", queue_size, encodersCallback);
     ros::Rate loop_rate(_ROS_FREQ);
-
+    
     sensor_msgs::Imu imu_msg;
     sensor_msgs::MagneticField mag_msg;
     geometry_msgs::Vector3Stamped rpy_msg;
     geometry_msgs::TwistStamped du_msg;
     initializeParams(n,my_data->comp_filter_);
-
+    while(!my_data->is_sensor_ready);
     //------------------------------------------  Main loop -------------------------------------------
     while (ros::ok() && !_CloseRequested)
     {
@@ -156,10 +157,10 @@ void *rosNodeThread(void *data) {
         imu_msg.linear_acceleration.x = my_data->imu.ax;
         imu_msg.linear_acceleration.y = my_data->imu.ay;
         imu_msg.linear_acceleration.z = my_data->imu.az;
-        imu_msg.orientation.x = my_data->imu.qx();
-        imu_msg.orientation.y = my_data->imu.qy();
-        imu_msg.orientation.z = my_data->imu.qz();
-        imu_msg.orientation.w = my_data->imu.qw();
+        imu_msg.orientation.x = my_data->imu.qx;
+        imu_msg.orientation.y = my_data->imu.qy;
+        imu_msg.orientation.z = my_data->imu.qz;
+        imu_msg.orientation.w = my_data->imu.qw;
         imu_pub.publish(imu_msg);
 
         mag_msg.header = header;
