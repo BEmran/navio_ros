@@ -264,6 +264,7 @@ void *controlThread(void *data) {
     my_data->du[2] = 0.0;
     my_data->du[3] = 0.0;
     //------------------------------------- Wait for user input --------------------------------------
+    while(!my_data->is_sensor_ready);
     int x = 0;
     while (x == 0) {
         printf("Enter 1 to start control\n");
@@ -274,7 +275,8 @@ void *controlThread(void *data) {
     //------------------------------------------  Main loop -------------------------------------------
     while (!_CloseRequested) {
         dt = st.tsCalculat();
-        control(my_data,dt);
+        if (dt < 0.01)
+            control(my_data,dt);
         du2motor(&my_data->pwm,my_data->du[0],my_data->du[1],my_data->du[2],my_data->du[3]);
         dtsumm += dt;
         if (dtsumm > 1) {
