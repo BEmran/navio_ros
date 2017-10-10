@@ -42,7 +42,7 @@ pthread_t _Thread_Control;
 pthread_t _Thread_RosNode;
 geometry_msgs::Vector3Stamped encoders;
 float ang_cmd[3]={0.0,0.0,0.0};
-
+float du_cmd[4]={0.0,0.0,0.0,0.0};
 /*****************************************************************************************
 Define structures
 ******************************************************************************************/
@@ -78,7 +78,8 @@ void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
 void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
-void initializeParams(ros::NodeHandle& n, imu_tools::ComplementaryFilter& comp_filter_);
+void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
+void initializeParams(ros::NodeHandle& n, dataStruct* data);
 void control(dataStruct* data, float dt);
 
 /*****************************************************************************************
@@ -172,7 +173,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     //------------------------------------  Get Control Parameter -----------------------------------
 
     if (n.getParam("testbed/control/angle/gains/kp", data->angCon.kp))
-        ROS_INFO("Found angle control kp gains: kp[0] %f, kp[1] %f, kp[2] %f\n",my_data->angCon.kp[0],my_data->angCon.kp[1],my_data->angCon.kp[2]);
+        ROS_INFO("Found angle control kp gains: kp[0] %f, kp[1] %f, kp[2] %f\n",data->angCon.kp[0],data->angCon.kp[1],data->angCon.kp[2]);
     else {
         ROS_INFO("Can't find angle control kp gains");
         data->angCon.kp.assign(0,0.4);
@@ -181,7 +182,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
 
     if (n.getParam("testbed/control/angle/gains/ki", data->angCon.ki))
-        ROS_INFO("Found angle control ki gains: ki[0] %f, ki[1] %f, ki[2] %f\n",my_data->angCon.ki[0],my_data->angCon.ki[1],my_data->angCon.ki[2]);
+        ROS_INFO("Found angle control ki gains: ki[0] %f, ki[1] %f, ki[2] %f\n",data->angCon.ki[0],data->angCon.ki[1],data->angCon.ki[2]);
     else {
         ROS_INFO("Can't find angle control ki gains");
         data->angCon.ki.assign(0,1.0);
@@ -190,7 +191,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
 
     if (n.getParam("testbed/control/angle/gains/kd", data->angCon.kd))
-        ROS_INFO("Found angle control kd gains: kd[0] %f, kd[1] %f, kd[2] %f\n",my_data->angCon.kd[0],my_data->angCon.kd[1],my_data->angCon.kd[2]);
+        ROS_INFO("Found angle control kd gains: kd[0] %f, kd[1] %f, kd[2] %f\n",data->angCon.kd[0],data->angCon.kd[1],data->angCon.kd[2]);
     else {
         ROS_INFO("Can't find angle control kd gains");
         data->angCon.kd.assign(0,1.0);
@@ -273,6 +274,7 @@ void *controlThread(void *data) {
     //------------------------------------------  Main loop -------------------------------------------
     while (!_CloseRequested) {
         dt = st.tsCalculat();
+        control(my_data,dt);
         du2motor(&my_data->pwm,my_data->du[0],my_data->du[1],my_data->du[2],my_data->du[3]);
         dtsumm += dt;
         if (dtsumm > 1) {
@@ -302,14 +304,16 @@ void *rosNodeThread(void *data) {
     ros::Publisher rpy_pub = n.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/rpy/filtered", queue_size);
     ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
     ros::Subscriber ang_cmd_sub = n.subscribe("testbed/cmd/angle", queue_size, angCmdCallback);
+    ros::Subscriber du_sub = n.subscribe("testbed/cmd/du", queue_size, duCmdCallback);
     ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", queue_size, encodersCallback);
+
     ros::Rate loop_rate(_ROS_FREQ);
 
     sensor_msgs::Imu imu_msg;
     sensor_msgs::MagneticField mag_msg;
     geometry_msgs::Vector3Stamped rpy_msg;
     geometry_msgs::TwistStamped du_msg;
-    initializeParams(n,my_data->comp_filter_);
+    initializeParams(n,my_data);
     while(!my_data->is_sensor_ready);
     //------------------------------------------  Main loop -------------------------------------------
     while (ros::ok() && !_CloseRequested)
@@ -370,6 +374,16 @@ void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
     ang_cmd[2] = msg->vector.z;
 }
 
+/*****************************************************************************************
+duCmdCallback: Read cmanded du values and map it to gloabal variable
+******************************************************************************************/
+void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
+{
+    du_cmd[0] = msg->twist.angular.x;
+    du_cmd[1] = msg->twist.angular.y;
+    du_cmd[2] = msg->twist.angular.z;
+    du_cmd[3] = msg->twist.linear.z;
+}
 #endif // BASIC
 
 
