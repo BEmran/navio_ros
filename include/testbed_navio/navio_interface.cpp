@@ -51,9 +51,9 @@ InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name, imuStruct* imu) {
     gyroCalibrate(ins, ahrs);
 
     //------------------------------------- Calibrate mag ------------------------------------------
-    printf("Start moving the testbed around...\n");
-    sleep(2);
-    magCalibrate(ins,imu->mag_offset,imu->mag_scale);
+    //printf("Start moving the testbed around...\n");
+    //sleep(2);
+    //magCalibrate(ins,imu->mag_offset,imu->mag_scale);
     //----------------------------------- Return INS object ---------------------------------------
 
     return ins;
@@ -153,6 +153,11 @@ void getIMU(InertialSensor *ins, imuStruct* imu) {
     imu->ax /= _G_SI;
     imu->ay /= _G_SI;
     imu->az /= _G_SI;
+    
+    //----------------- Scale and corret Magnetmeter measurements --------------------
+    //imu->mx = (imu->mx - imu->mag_offset[0])*imu->mag_scale[0];
+    //imu->my = (imu->my - imu->mag_offset[1])*imu->mag_scale[1];
+    //imu->mz = (imu->mz - imu->mag_offset[2])*imu->mag_scale[2];
 }
 
 /*****************************************************************************************
@@ -237,7 +242,8 @@ void doAHRS(AHRS *ahrs, imuStruct* imu, float dt) {
 void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruct* imu, float dt){
 
     //------------------------------------- Update the filter ----------------------------------------
-    comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,imu->mx, imu->my, -imu->mz, dt);
+    //comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,imu->mx, imu->my, -imu->mz, dt);
+    comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz, dt);
 
     //------------------------------------ Get the orientation ---------------------------------------
     double q0, q1, q2, q3;
