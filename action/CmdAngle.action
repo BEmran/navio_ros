@@ -1,0 +1,12 @@
+#goal definition
+float32 roll
+float32 ptich
+float32 yaw
+---
+#result definition
+int32[] sequence
+---
+#feedback
+float32 roll
+float32 ptich
+float32 yaw

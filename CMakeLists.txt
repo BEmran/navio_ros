@@ -10,12 +10,24 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  actionlib_msgs
+)
+
+## Declare the actions to be generated: 
+add_action_files(
+  DIRECTORY action
+  FILES CmdAngle.action StartStopControl.action
+)
+
+## Declare msg to be generated: 
+generate_messages(
+  DEPENDENCIES actionlib_msgs std_msgs
 )
 
 ## Declare a catkin package
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS geometry_msgs roscpp rospy std_msgs
+  CATKIN_DEPENDS geometry_msgs roscpp rospy std_msgs actionlib_msgs
 )
 
 ## Declare a C++ library
@@ -26,6 +38,7 @@ add_library(${PROJECT_NAME}
   include/Navio/LSM9DS1.cpp
   include/lib/SamplingTime.cpp
   include/${PROJECT_NAME}/navio_interface.cpp
+  include/${PROJECT_NAME}/basic_ros_node.cpp
   include/lib/complementary_filter.cpp
 )
 

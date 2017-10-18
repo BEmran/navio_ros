@@ -35,11 +35,11 @@ Global variables
 Define structures
 ******************************************************************************************/
 struct imuStruct{
-    float gx, gy, gz;
-    float ax, ay, az;
-    float mx, my, mz;
-    float r, p, w;
-    float qx, qy, qz, qw;
+    float gyro[3];
+    float acc[3];
+    float mag[3];
+    float rpy[3];
+    float quat[4];
     float mag_offset[3];
     float mag_scale[3];
 };

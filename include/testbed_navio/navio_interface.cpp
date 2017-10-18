@@ -138,21 +138,21 @@ void magCalibrate(InertialSensor *ins,float mag_bias[3], float mag_scale[3]) {
 void getIMU(InertialSensor *ins, imuStruct* imu) {
     //-------- Read raw measurements from the MPU and update AHRS --------------
     ins->update();
-    ins->read_accelerometer(&imu->ax, &imu->ay, &imu->az);
-    ins->read_gyroscope(&imu->gx, &imu->gy, &imu->gz);
-    ins->read_magnetometer(&imu->mx, &imu->my, &imu->mz);
+    ins->read_accelerometer(&imu->acc[0], &imu->acc[1], &imu->acc[2]);
+    ins->read_gyroscope(&imu->gyro[0], &imu->gyro[1], &imu->gyro[2]);
+    ins->read_magnetometer(&imu->mag[0], &imu->mag[1], &imu->mag[2]);
 
     //----------------- Rotating gyro axis by rotating +90 around z-axis -------------------
-    float tmpgx = imu->gx, tmpax = imu->ax;
-    imu->gx = imu->gy;				// gx = gy
-    imu->gy = -tmpgx;		  		// gy = -1 * gx
-    imu->ax = imu->ay;				// ax = ay
-    imu->ay = -tmpax;			  	// ay = -1 * ax
+    float tmpgx = imu->gyro[0], tmpax = imu->acc[0];
+    imu->gyro[0] = imu->gyro[1];				// gx = gy
+    imu->gyro[1] = -tmpgx;		  		// gy = -1 * gx
+    imu->acc[0] = imu->acc[1];				// ax = ay
+    imu->acc[1] = -tmpax;			  	// ay = -1 * ax
 
     //------------ Scale Accelerometer measurement by dividing by 9.81---------------
-    imu->ax /= _G_SI;
-    imu->ay /= _G_SI;
-    imu->az /= _G_SI;
+    imu->acc[0] /= _G_SI;
+    imu->acc[1] /= _G_SI;
+    imu->acc[2] /= _G_SI;
     
     //----------------- Scale and corret Magnetmeter measurements --------------------
     //imu->mx = (imu->mx - imu->mag_offset[0])*imu->mag_scale[0];
@@ -221,18 +221,18 @@ float sat(float x, float upper, float lower) {
 void doAHRS(AHRS *ahrs, imuStruct* imu, float dt) {
 
     //--------------------- Perfourm AHRS for Accelerometer + Gyro -----------------------
-    ahrs->updateIMU(imu->ax, imu->ay, imu->az, imu->gx, imu->gy, imu->gz, dt);
+    ahrs->updateIMU(imu->acc[0], imu->acc[1], imu->acc[2], imu->gyro[0], imu->gyro[1], imu->gyro[2], dt);
 
     //------------ Perfourm AHRS for Accelerometer + Gyro + Magnetometer ---------
     //ahrs->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,
     //imu->mx, imu->my, -imu->mz, dt);
 
     //------------------------------------ Read Euler angles ---------------------------------------
-    ahrs->getEulerRad(&imu->r, &imu->p, &imu->w);
-    imu->qx = ahrs->getX();
-    imu->qy = ahrs->getY();
-    imu->qz = ahrs->getZ();
-    imu->qw = ahrs->getW();
+    ahrs->getEulerRad(&imu->rpy[0], &imu->rpy[1], &imu->rpy[2]);
+    imu->quat[0] = ahrs->getX();
+    imu->quat[1] = ahrs->getY();
+    imu->quat[2] = ahrs->getZ();
+    imu->quat[3] = ahrs->getW();
 }
 
 
@@ -243,23 +243,23 @@ void doComplementaryFilter(imu_tools::ComplementaryFilter* comp_filter, imuStruc
 
     //------------------------------------- Update the filter ----------------------------------------
     //comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz,imu->mx, imu->my, -imu->mz, dt);
-    comp_filter->update(imu->ax, imu->ay, imu->az,imu->gx,imu->gy, imu->gz, dt);
+    comp_filter->update(imu->acc[0], imu->acc[1], imu->acc[2],imu->gyro[0],imu->gyro[1], imu->gyro[2], dt);
 
     //------------------------------------ Get the orientation ---------------------------------------
     double q0, q1, q2, q3;
     comp_filter->getOrientation(q0, q1, q2, q3);
-    imu->qx = q1;
-    imu->qy = q2;
-    imu->qz = q3;
-    imu->qw = q0;
-    Quaternion2Euler(imu->r,imu->p,imu->w,q1, q2, q3, q0);
+    imu->quat[0] = q1;
+    imu->quat[1] = q2;
+    imu->quat[2] = q3;
+    imu->quat[3] = q0;
+    Quaternion2Euler(imu->rpy[0],imu->rpy[1],imu->rpy[2],q1, q2, q3, q0);
 
     //------------------------------------ Account for biases ---------------------------------------
     if (comp_filter->getDoBiasEstimation())
     {
-        imu->gx -= comp_filter->getAngularVelocityBiasX();
-        imu->gy -= comp_filter->getAngularVelocityBiasY();
-        imu->gz -= comp_filter->getAngularVelocityBiasZ();
+        imu->gyro[0] -= comp_filter->getAngularVelocityBiasX();
+        imu->gyro[1] -= comp_filter->getAngularVelocityBiasY();
+        imu->gyro[2] -= comp_filter->getAngularVelocityBiasZ();
     }
 }
 

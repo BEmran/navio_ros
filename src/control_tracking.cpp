@@ -50,14 +50,14 @@ void control(dataStruct* data, float dt){
     float cmd_adj[3];
     float u_max[3] = {_MAX_ROLL,_MAX_PITCH,_MAX_YAW};
 //    float ang[3] = {data->imu.r,data->imu.p,data->imu.w};
-    float ang[3] = {encoders.vector.x, encoders.vector.y,encoders.vector.z};
+    float ang[3] = {data->rosnode->_enc[0], data->rosnode->_enc[1],data->rosnode->_enc[2]};
 
-    float w[3] = {data->imu.gx,data->imu.gy,data->imu.gz};
+    float w[3] = {data->imu.gyro[0],data->imu.gyro[1],data->imu.gyro[2]};
     // LQR control
     for (int i = 0; i < 3; i++)
     {
       // adjust cmd
-      cmd_adj[i] = sat(ang_cmd[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
+      cmd_adj[i] = sat(data->rosnode->_cmd_ang[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
 
       // traking error
       e[i] = cmd_adj[i] - ang[i];

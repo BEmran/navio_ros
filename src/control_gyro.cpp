@@ -48,9 +48,9 @@ void control(dataStruct* data, float dt){
     float kd[3]={0.4,0.4,0.8};
 
     // control signal
-    float ur = -data->imu.gx * kd[0];
-    float up = -data->imu.gy * kd[1];
-    float uy = -data->imu.gz * kd[2];
+    float ur = -data->imu.gyro[0] * kd[0];
+    float up = -data->imu.gyro[1] * kd[1];
+    float uy = -data->imu.gyro[2] * kd[2];
 
     // saturation
     data->du[0] = sat(ur,0.3,-0.3);

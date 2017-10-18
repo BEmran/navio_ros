@@ -18,12 +18,8 @@ Header files
 
 #include "navio_interface.h"         // Navio io interfaces
 #include "lib/SamplingTime.h"      // Sampling time Class
+#include "testbed_navio/basic_ros_node.h"
 
-#include "ros/ros.h"
-#include "geometry_msgs/Vector3Stamped.h"   // for encodres msg
-#include "geometry_msgs/TwistStamped.h"       // for du msg
-#include "sensor_msgs/Imu.h"                              // for IMU sensor msg
-#include "sensor_msgs/MagneticField.h"            // for Magnetic sensor msg
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -40,9 +36,7 @@ bool _CloseRequested = false;
 pthread_t _Thread_Sensors;
 pthread_t _Thread_Control;
 pthread_t _Thread_RosNode;
-geometry_msgs::Vector3Stamped encoders;
-float ang_cmd[3]={0.0,0.0,0.0};
-float du_cmd[4]={0.0,0.0,0.0,0.0};
+
 /*****************************************************************************************
 Define structures
 ******************************************************************************************/
@@ -64,9 +58,9 @@ struct dataStruct {
         int argc;
         char** argv;
         imu_tools::ComplementaryFilter comp_filter_;
-	bool is_sensor_ready;
+        bool is_sensor_ready;
+        BasicRosNode* rosnode;
 };
-
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
@@ -76,10 +70,6 @@ void *rosNodeThread(void *data);
 void ctrlCHandler(int signal);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
-void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
-void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
-void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
-void initializeParams(ros::NodeHandle& n, dataStruct* data);
 void control(dataStruct* data, float dt);
 
 /*****************************************************************************************
@@ -125,15 +115,6 @@ float sat(float x, float upper, float lower) {
     else if (x >= upper)
         x = upper;
     return x;
-}
-
-/*****************************************************************************************
-encodersCallback: Read encoders and map it to gloabal variable
-******************************************************************************************/
-void encodersCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
-{
-    encoders.header = msg->header;
-    encoders.vector = msg->vector;
 }
 
 /*****************************************************************************************
@@ -238,7 +219,7 @@ void *sensorsThread(void *data) {
         if (dtsumm > 1) {
             dtsumm = 0;
             printf("Sensors thread with ROLL: %+03.2f PITCH: %+03.2f YAW: %+03.2f %d Hz\n"
-                   , my_data->imu.r, my_data->imu.p, my_data->imu.w * -1, int(1 / dt));
+                   , my_data->imu.rpy[0], my_data->imu.rpy[1], my_data->imu.rpy[2] * -1, int(1 / dt));
         }
     }
 
@@ -296,66 +277,20 @@ void *rosNodeThread(void *data) {
     printf("Start ROS Node thread\n");
     struct dataStruct *my_data;
     my_data = (struct dataStruct *) data;
-
     //--------------------------------------- Initialize ROS ------------------------------------------
     ros::init(my_data->argc,my_data->argv,"navio_basic");
-    int queue_size = 10;
-    ros::NodeHandle n;
-    ros::Publisher imu_pub = n.advertise <sensor_msgs::Imu>("testbed/sensors/imu", queue_size);
-    ros::Publisher mag_pub = n.advertise <sensor_msgs::MagneticField>("testbed/sensors/mag", queue_size);
-    ros::Publisher rpy_pub = n.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/rpy/filtered", queue_size);
-    ros::Publisher du_pub = n.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
-    ros::Subscriber ang_cmd_sub = n.subscribe("testbed/cmd/angle", queue_size, angCmdCallback);
-    ros::Subscriber du_sub = n.subscribe("testbed/cmd/du", queue_size, duCmdCallback);
-    ros::Subscriber encoder_sub = n.subscribe("testbed/sensors/encoders", queue_size, encodersCallback);
-
+    ros::NodeHandle nh;
+    my_data->rosnode = new BasicRosNode (nh);
     ros::Rate loop_rate(_ROS_FREQ);
+    initializeParams(nh,my_data);
 
-    sensor_msgs::Imu imu_msg;
-    sensor_msgs::MagneticField mag_msg;
-    geometry_msgs::Vector3Stamped rpy_msg;
-    geometry_msgs::TwistStamped du_msg;
-    initializeParams(n,my_data);
     while(!my_data->is_sensor_ready);
     //------------------------------------------  Main loop -------------------------------------------
     while (ros::ok() && !_CloseRequested)
     {
-        std_msgs::Header header;
-        header.stamp = ros::Time::now();
-        header.seq++;
-
-        imu_msg.header = header;
-        imu_msg.angular_velocity.x = my_data->imu.gx;
-        imu_msg.angular_velocity.y = my_data->imu.gy;
-        imu_msg.angular_velocity.z = my_data->imu.gz;
-        imu_msg.linear_acceleration.x = my_data->imu.ax;
-        imu_msg.linear_acceleration.y = my_data->imu.ay;
-        imu_msg.linear_acceleration.z = my_data->imu.az;
-        imu_msg.orientation.x = my_data->imu.qx;
-        imu_msg.orientation.y = my_data->imu.qy;
-        imu_msg.orientation.z = my_data->imu.qz;
-        imu_msg.orientation.w = my_data->imu.qw;
-        imu_pub.publish(imu_msg);
-
-        mag_msg.header = header;
-        mag_msg.magnetic_field.x = my_data->imu.mx;
-        mag_msg.magnetic_field.y = my_data->imu.my;
-        mag_msg.magnetic_field.z = my_data->imu.mz;
-        mag_pub.publish(mag_msg);
-
-        rpy_msg.header = header;
-        rpy_msg.vector.x = my_data->imu.r;
-        rpy_msg.vector.y = my_data->imu.p;
-        rpy_msg.vector.z = my_data->imu.w;
-        rpy_pub.publish(rpy_msg);
-
-        du_msg.header = header;
-        du_msg.twist.angular.x = my_data->du[0];
-        du_msg.twist.angular.y = my_data->du[1];
-        du_msg.twist.angular.z = my_data->du[2];
-        du_msg.twist.linear.x = my_data->du[3];
-        du_pub.publish(du_msg);
-
+        my_data->rosnode->publishAllMsgs(my_data->imu.gyro,my_data->imu.acc,
+                                         my_data->imu.quat,my_data->imu.mag,my_data->imu.rpy,
+                                         my_data->du );
         ros::spinOnce();
         loop_rate.sleep();
     }
@@ -366,26 +301,6 @@ void *rosNodeThread(void *data) {
     pthread_exit(NULL);
 }
 
-/*****************************************************************************************
-angCmdCallback: Read encoders and map it to gloabal variable
-******************************************************************************************/
-void angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
-{
-    ang_cmd[0] = msg->vector.x;
-    ang_cmd[1] = msg->vector.y;
-    ang_cmd[2] = msg->vector.z;
-}
-
-/*****************************************************************************************
-duCmdCallback: Read cmanded du values and map it to gloabal variable
-******************************************************************************************/
-void duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
-{
-    du_cmd[0] = msg->twist.angular.x;
-    du_cmd[1] = msg->twist.angular.y;
-    du_cmd[2] = msg->twist.angular.z;
-    du_cmd[3] = msg->twist.linear.z;
-}
 #endif // BASIC
 
 

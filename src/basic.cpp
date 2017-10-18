@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 
     //------------------------------------------  Main loop ------------------------------------------
     while (!_CloseRequested) {
-        printf("main\n");
+        printf(".\n");
         sleep(1);
     }
 
