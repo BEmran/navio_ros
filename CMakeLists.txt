@@ -6,29 +6,19 @@ project(testbed_navio)
 
 ## Find catkin and any catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
   roscpp
   rospy
   std_msgs
-  actionlib_msgs
-)
-
-## Declare the actions to be generated: 
-add_action_files(
-  DIRECTORY action
-  FILES CmdAngle.action StartStopControl.action
+  geometry_msgs
+  message_generation
 )
 
 ## Declare msg to be generated: 
-generate_messages(
-  DEPENDENCIES actionlib_msgs std_msgs
-)
-
-## Declare a catkin package
-catkin_package(
-  INCLUDE_DIRS include
-  CATKIN_DEPENDS geometry_msgs roscpp rospy std_msgs actionlib_msgs
-)
+#generate_messages(
+ # DEPENDENCIES
+  #std_msgs
+  #geometry_msgs
+#)
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
@@ -42,14 +32,23 @@ add_library(${PROJECT_NAME}
   include/lib/complementary_filter.cpp
 )
 
+## Declare a catkin package
+catkin_package(
+  INCLUDE_DIRS include
+  CATKIN_DEPENDS  roscpp rospy std_msgs geometry_msgs message_generation
+  #LIBRARIES ${PROJECT_NAME}  # is needed??
+)
+
 ## Specify additional locations of header files
-include_directories(
-   include
+include_directories(include
   ${catkin_INCLUDE_DIRS}
+  #${${PROJECT_NAME}_EXPORTED_TARGETS} # is needed??
+  #${catkin_EXPORTED_TARGETS} # is needed??
 )
 
 add_executable(basic src/basic.cpp)
 target_link_libraries(basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
+#add_dependencies(basic ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 add_executable(control_gyro src/control_gyro.cpp)
 target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
@@ -59,3 +58,4 @@ target_link_libraries(control_tracking  ${catkin_LIBRARIES} ${PROJECT_NAME})
 
 add_executable(demo src/demo.cpp)
 target_link_libraries(demo  ${catkin_LIBRARIES} ${PROJECT_NAME})
+

@@ -19,7 +19,6 @@ Header files
 #include "navio_interface.h"         // Navio io interfaces
 #include "lib/SamplingTime.h"      // Sampling time Class
 #include "testbed_navio/basic_ros_node.h"
-
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -278,9 +277,10 @@ void *rosNodeThread(void *data) {
     struct dataStruct *my_data;
     my_data = (struct dataStruct *) data;
     //--------------------------------------- Initialize ROS ------------------------------------------
-    ros::init(my_data->argc,my_data->argv,"navio_basic");
+    std::string name = "navio_basic";
+    ros::init(my_data->argc,my_data->argv,name);
     ros::NodeHandle nh;
-    my_data->rosnode = new BasicRosNode (nh);
+    my_data->rosnode = new BasicRosNode (nh,name);
     ros::Rate loop_rate(_ROS_FREQ);
     initializeParams(nh,my_data);
 

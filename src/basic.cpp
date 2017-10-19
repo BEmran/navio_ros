@@ -42,5 +42,7 @@ int main(int argc, char** argv) {
 control: Perfourm control loop
 ******************************************************************************************/
  void control(dataStruct* data, float dt){
-    sleep(1);
+     for (int i=0; i <4;i++){
+        data->du[i] = data->rosnode->_cmd_du[i];
+     }
  }

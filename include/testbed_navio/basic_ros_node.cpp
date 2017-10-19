@@ -7,19 +7,19 @@ BasicRosNode::BasicRosNode()
 /*****************************************************************************************
 BasicRosNode: construct an object for ros node
 ******************************************************************************************/
-BasicRosNode::BasicRosNode(ros::NodeHandle nh){
+BasicRosNode::BasicRosNode(ros::NodeHandle nh ,std::string name){
     _nh = nh;
+    _name = name;
     queue_size = 10;
     _pub_imu = _nh.advertise <sensor_msgs::Imu>("testbed/sensors/imu", queue_size);
     _pub_mag = _nh.advertise <sensor_msgs::MagneticField>("testbed/sensors/mag", queue_size);
     _pub_rpy = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/rpy/filtered", queue_size);
     _pub_du = _nh.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
 
-    _sub_ang = _nh.subscribe("testbed/cmd/angle", queue_size, &BasicRosNode::angCmdCallback,this);
-    _sub_du = _nh.subscribe("testbed/cmd/du", queue_size, &BasicRosNode::duCmdCallback,this);
+    _sub_ang = _nh.subscribe("testbed/cmd/angle", queue_size, &BasicRosNode::cmdAngCallback,this);
+    _sub_du = _nh.subscribe("testbed/cmd/du", queue_size, &BasicRosNode::cmdDuCallback,this);
     _sub_enc = _nh.subscribe("testbed/sensors/encoders", queue_size, &BasicRosNode::encCallback,this);
 }
-
 /*****************************************************************************************
 publishIMUMsg: Publish imu msgs
 ******************************************************************************************/
@@ -94,7 +94,7 @@ void BasicRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], fl
 /*****************************************************************************************
 angCmdCallback: Read encoders and map it to gloabal variable
 ******************************************************************************************/
-void BasicRosNode::angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+void BasicRosNode::cmdAngCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
 {
     _cmd_ang[0] = msg->vector.x;
     _cmd_ang[1] = msg->vector.y;
@@ -104,7 +104,7 @@ void BasicRosNode::angCmdCallback(const geometry_msgs::Vector3Stamped::ConstPtr&
 /*****************************************************************************************
 duCmdCallback: Read cmanded du values and map it to gloabal variable
 ******************************************************************************************/
-void BasicRosNode::duCmdCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
+void BasicRosNode::cmdDuCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
 {
     _cmd_du[0] = msg->twist.angular.x;
     _cmd_du[1] = msg->twist.angular.y;
@@ -121,3 +121,4 @@ void BasicRosNode::encCallback(const geometry_msgs::Vector3Stamped::ConstPtr& ms
     _enc[1] = msg->vector.y;
     _enc[2] = msg->vector.z;
 }
+
