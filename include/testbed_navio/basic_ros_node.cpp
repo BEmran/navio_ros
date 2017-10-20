@@ -14,11 +14,12 @@ BasicRosNode::BasicRosNode(ros::NodeHandle nh ,std::string name){
     _pub_imu = _nh.advertise <sensor_msgs::Imu>("testbed/sensors/imu", queue_size);
     _pub_mag = _nh.advertise <sensor_msgs::MagneticField>("testbed/sensors/mag", queue_size);
     _pub_rpy = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/rpy/filtered", queue_size);
+    _pub_enc = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/encoders", queue_size);
     _pub_du = _nh.advertise <geometry_msgs::TwistStamped>("testbed/motors/du", queue_size);
 
     _sub_ang = _nh.subscribe("testbed/cmd/angle", queue_size, &BasicRosNode::cmdAngCallback,this);
     _sub_du = _nh.subscribe("testbed/cmd/du", queue_size, &BasicRosNode::cmdDuCallback,this);
-    _sub_enc = _nh.subscribe("testbed/sensors/encoders", queue_size, &BasicRosNode::encCallback,this);
+//    _sub_enc = _nh.subscribe("testbed/sensors/encoders", queue_size, &BasicRosNode::encCallback,this);
 }
 /*****************************************************************************************
 publishIMUMsg: Publish imu msgs
@@ -65,7 +66,18 @@ void BasicRosNode::publishRPYMsg(float rpy[3])
     _msg_rpy.vector.z = rpy[2];
     _pub_rpy.publish(_msg_rpy);
 }
-
+/*****************************************************************************************
+publishEncMsg: Publish encoder msgs
+******************************************************************************************/
+void BasicRosNode::publishEncMsg(float enc[3])
+{
+    _msg_enc.header.stamp = ros::Time::now();
+    _msg_enc.header.seq++;
+    _msg_enc.vector.x = enc[0];
+    _msg_enc.vector.y = enc[1];
+    _msg_enc.vector.z = enc[2];
+    _pub_enc.publish(_msg_enc);
+}
 /*****************************************************************************************
 publishMsgs: Publish motors' inputs du msgs
 ******************************************************************************************/
@@ -83,11 +95,12 @@ void BasicRosNode::publishDuMsg(float du[3])
 /*****************************************************************************************
 publishMsgs: Publish motors' inputs du msgs
 ******************************************************************************************/
-void BasicRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float Mag[3], float rpy[3], float du[3])
+void BasicRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float Mag[3], float rpy[3], float enc[3], float du[3])
 {
     publishIMUMsg(gyro, acc, quat);
     publishMagMsg(Mag);
     publishRPYMsg(rpy);
+    publishEncMsg(enc);
     publishDuMsg(du);
 }
 

@@ -19,6 +19,16 @@ Header files
 #include "navio_interface.h"         // Navio io interfaces
 #include "lib/SamplingTime.h"      // Sampling time Class
 #include "testbed_navio/basic_ros_node.h"
+
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <iostream>     // localtime
+#include <string>     // std::string, std::stof
+
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -290,7 +300,7 @@ void *rosNodeThread(void *data) {
     {
         my_data->rosnode->publishAllMsgs(my_data->imu.gyro,my_data->imu.acc,
                                          my_data->imu.quat,my_data->imu.mag,my_data->imu.rpy,
-                                         my_data->du );
+                                         my_data->encoders,my_data->du );
         ros::spinOnce();
         loop_rate.sleep();
     }
