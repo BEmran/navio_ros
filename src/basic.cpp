@@ -9,7 +9,7 @@ main: Run main function
  ****************************************************************************************/
 int main(int argc, char** argv) {
     //----------------------------------------- Welcome msg -------------------------------------
-    printf("Start Program\n");
+    printf("Start Program...\n");
     signal(SIGINT, ctrlCHandler);
 
     //------------------------------------- Define main variables --------------------------------
@@ -17,84 +17,43 @@ int main(int argc, char** argv) {
     data.argc = argc;
     data.argv = argv;
     data.is_sensor_ready = false;
+    data.is_tcp_ready = false;
 
+    data.wSys = DynSys(3, *w_dot_dyn);
+    data.w = data.wSys.getY();
+
+    struct tcpStruct tcp;
+    tcp.portNum = 1500;
     //----------------------------------------- Start threads ---------------------------------------
     pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
     pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
 
+    //------------------------------------------ initialize tcp ----------------------------------------
+    data.is_tcp_ready = initTcp(&tcp);
+    SamplingTime st(1000);
+    float dt, dtsumm = 0;
+    bool enablePrint;
+    //-------------------------------------------- Min loop ------------------------------------------
+    while(!_CloseRequested && data.is_tcp_ready){
+        dt = st.tsCalculat();
 
-    /* ---------- INITIALIZING VARIABLES ---------- */
-    int client, server, portNum = 1500, bufsize = 1024;
-    bool isExit = false;
-    char buffer[bufsize];
-
-    struct timeval tval;
-    struct sockaddr_in server_addr;
-    socklen_t size;
-
-    /* ---------- ESTABLISHING SOCKET CONNECTION ----------*/
-    client = socket(AF_INET, SOCK_STREAM, 0);
-    if (client < 0)
-    {
-        cout << "\nError establishing socket..." << endl;
-        exit(1);
+        getTcpData(&tcp, &data, enablePrint);
+        enablePrint = false;
+        dtsumm += dt;
+        if (dtsumm > 2) {
+            dtsumm = 0;
+            enablePrint = true;
+            printf("main thread with %d Hz\n", int(1 / dt));
+        }
     }
 
-    cout << "\n=> Socket server has been created..." << endl;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
-    server_addr.sin_port = htons(portNum);
+    //----------------------------------- Terminate tcp connection -----------------------------
+    printf("\n\n=> Connection terminated");
+    close(tcp.server);
+    close(tcp.client);
 
-    /* ---------- BINDING THE SOCKET ---------- */
-    if ((bind(client, (struct sockaddr*)&server_addr,sizeof(server_addr))) < 0)
-    {
-        cout << "=> Error binding connection, the socket has already been established..." << endl;
-        return -1;
-    }
-    size = sizeof(server_addr);
-    cout << "=> Looking for clients..." << endl;
-    listen(client, 1); // Listening call
-
-    /* ------------- ACCEPTING CLIENTS  ------------- */
-    int clientCount = 1;
-    server = accept(client,(struct sockaddr *)&server_addr,&size);
-    if (server < 0)  // first check if it is valid or not
-        cout << "=> Error on accepting..." << endl;
-    float sum = 0;
-    strcpy(buffer, "=> Server connected...\n");
-    send(server, buffer, bufsize, 0);
-    cout << "=> Connected with the client #" << clientCount << ", you are good to go..." << endl;
-    cout << "\n=> Enter # to end the connection\n" << endl;
-    //------------------------------------------  Main loop ------------------------------------------
-    char * pEnd;
-    unsigned long int time, time0;
-    while (_CloseRequested){
-        recv(server, buffer, bufsize, 0);
-
-        time = strtoul (buffer,&pEnd,10);
-        time0 = strtoul (pEnd,&pEnd,10);
-        float r = (float) strtod (pEnd,&pEnd);
-        float p = (float) strtod (pEnd,&pEnd);
-        float y = (float) strtod (pEnd,NULL);
-
-        data.encoders[0] = r;
-        data.encoders[1] = p;
-        data.encoders[2] = y;
-
-        sprintf(buffer,"%lu",time);
-        send(server, buffer, bufsize, 0);
-
-        if (*buffer == '#')
-            break;
-       //printf("%lu, %lu, %+5.5f, %+5.5f, %+5.5f\n",time, time0, r, p, y);
-    }
-
-    //---------------------------------------- Exit procedure -------------------------------------
-    cout << "\n\n=> Connection terminated with IP " << inet_ntoa(server_addr.sin_addr);
-    close(server);
-    cout << "\nGoodbye..." << endl;
-    close(client);
+    //----------------------------------------- Exit procedure -------------------------------------
 
     pthread_cancel(_Thread_Sensors);
     pthread_cancel(_Thread_Control);

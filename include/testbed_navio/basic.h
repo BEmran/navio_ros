@@ -3,7 +3,6 @@
  * Author: Bara ESmran
  * Created on September 7, 2017, 1:14 PM
  */
-
 #ifndef BASIC
 #define BASIC
 
@@ -29,6 +28,7 @@ Header files
 #include <iostream>     // localtime
 #include <string>     // std::string, std::stof
 
+#include <lib/DynSys.h>     //
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -56,20 +56,34 @@ struct controlStruct {
 };
 
 struct dataStruct {
-        float pwmVal[4];
         float du[4];
-        float encoders[3];
-        PWM pwm;
-        imuStruct imu;
-        InertialSensor *ins;
-        AHRS ahrs;
-        controlStruct angCon;
+        float enc[3];
+        float enc_dot[3];
+        float pwmVal[4];
         int argc;
         char** argv;
-        imu_tools::ComplementaryFilter comp_filter_;
+        bool is_tcp_ready;
         bool is_sensor_ready;
+        PWM pwm;
+        AHRS ahrs;
+        imuStruct imu;
+        InertialSensor *ins;
+        controlStruct angCon;
         BasicRosNode* rosnode;
+        imu_tools::ComplementaryFilter comp_filter_;
+        const float* w;
+        DynSys wSys;
 };
+
+struct tcpStruct{
+        int portNum, bufsize;
+        int client, server;
+        char buffer[1024];
+        struct timeval tval;
+        struct sockaddr_in server_addr;
+        socklen_t size;
+};
+
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
@@ -80,7 +94,9 @@ void ctrlCHandler(int signal);
 void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
 float sat(float x, float upper, float lower);
 void control(dataStruct* data, float dt);
-
+bool initTcp(tcpStruct* tcp);
+void getTcpData(tcpStruct* tcp, dataStruct* data, bool print);
+void w_dot_dyn(float* y, float* x, float* xdot, float* u, float t);
 /*****************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
  ****************************************************************************************/
@@ -147,8 +163,8 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     if (!n.getParam ("do_adaptive_gain", do_adaptive_gain))
         do_adaptive_gain = true;
 
-   data->comp_filter_.setDoBiasEstimation(do_bias_estimation);
-   data-> comp_filter_.setDoAdaptiveGain(do_adaptive_gain);
+    data->comp_filter_.setDoBiasEstimation(do_bias_estimation);
+    data-> comp_filter_.setDoAdaptiveGain(do_adaptive_gain);
 
     if(!data->comp_filter_.setGainAcc(gain_acc))
         ROS_WARN("Invalid gain_acc passed to ComplementaryFilter.");
@@ -225,7 +241,7 @@ void *sensorsThread(void *data) {
 
         //-------------------------------------- Display data ---------------------------------------
         dtsumm += dt;
-        if (dtsumm > 1) {
+        if (dtsumm > 2) {
             dtsumm = 0;
             printf("Sensors thread with ROLL: %+03.2f PITCH: %+03.2f YAW: %+03.2f %d Hz\n"
                    , my_data->imu.rpy[0], my_data->imu.rpy[1], my_data->imu.rpy[2] * -1, int(1 / dt));
@@ -269,7 +285,7 @@ void *controlThread(void *data) {
             control(my_data,dt);
         du2motor(&my_data->pwm,my_data->du[0],my_data->du[1],my_data->du[2],my_data->du[3]);
         dtsumm += dt;
-        if (dtsumm > 1) {
+        if (dtsumm > 2) {
             dtsumm = 0;
             printf("Control thread with %d Hz\n", int(1 / dt));
         }
@@ -300,7 +316,7 @@ void *rosNodeThread(void *data) {
     {
         my_data->rosnode->publishAllMsgs(my_data->imu.gyro,my_data->imu.acc,
                                          my_data->imu.quat,my_data->imu.mag,my_data->imu.rpy,
-                                         my_data->encoders,my_data->du );
+                                         my_data->enc,my_data->du );
         ros::spinOnce();
         loop_rate.sleep();
     }
@@ -311,6 +327,101 @@ void *rosNodeThread(void *data) {
     pthread_exit(NULL);
 }
 
+/*****************************************************************************************
+ initTcp: initialize tcp socket
+ *****************************************************************************************/
+bool initTcp(tcpStruct* tcp){
+    tcp->bufsize = 1024;
+
+    //------------------------------- Establish socket connection --------------------------------
+    tcp->client = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcp->client < 0)
+    {
+        printf("\nError establishing socket...");
+        return false;
+    }
+
+    printf("\n=> Socket server has been created...");
+    tcp->server_addr.sin_family = AF_INET;
+    tcp->server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+    tcp->server_addr.sin_port = htons(tcp->portNum);
+
+    //-------------------------------------  Binding socket ------------------------------------------
+    if ((bind(tcp->client, (struct sockaddr*)&tcp->server_addr,sizeof(tcp->server_addr))) < 0)
+    {
+        printf("=> Error binding connection, the socket has already been established...\n");
+        return false;
+    }
+    tcp->size = sizeof(tcp->server_addr);
+
+    //-------------------------------------  Listening for clients ------------------------------------
+    printf("=> Looking for clients...\n");
+    listen(tcp->client, 1);
+
+    //--------------------------------------  Accepting Clients -------------------------------------
+    int clientCount = 1;
+    tcp->server = accept(tcp->client,(struct sockaddr *)&tcp->server_addr,&tcp->size);
+    if (tcp->server < 0)  // first check if it is valid or not
+        printf("=> Error on accepting...\n");
+
+    //------------------------------------ Send acknowledgment --------------------------------
+    strcpy(tcp->buffer, "=> Server connected...\n");
+    send(tcp->server, tcp->buffer, tcp->bufsize, 0);
+    printf("=> Connected with the client #%d, you are good to go...\n",clientCount);
+
+    return true;
+}
+
+/*****************************************************************************************
+ getTcpData: read data from tcp connection and decode it
+ *****************************************************************************************/
+void getTcpData(tcpStruct* tcp, dataStruct* data, bool print = false){
+    char * pEnd;
+    unsigned long int time, time0;
+    float tmp[3] = {data->enc[0],data->enc[1],data->enc[2]};
+
+    //---------------------------------- Wait for data from user -------------------------------
+    recv(tcp->server, tcp->buffer, tcp->bufsize, 0);
+
+    //----------------------------------------- Decode data -------------------------------------
+    time = strtoul (tcp->buffer,&pEnd,10);
+    time0 = strtoul (pEnd,&pEnd,10);
+    data->enc[0] = (float) strtod (pEnd,&pEnd);
+    data->enc[1] = (float) strtod (pEnd,&pEnd);
+    data->enc[2] = (float) strtod (pEnd,NULL);
+
+    float dt = (time-time0)/1000000.0;
+    data->enc_dot[0] = (data->enc[0] - tmp[0]) / dt;
+    data->enc_dot[1] = (data->enc[1] - tmp[1]) / dt;
+    data->enc_dot[2] = (data->enc[2] - tmp[2]) / dt;
+
+    data->wSys.update(data->enc, 0.0, dt);
+    data->enc_dot[0] = data->w[0];
+    data->enc_dot[1] = data->w[1];
+    data->enc_dot[2] = data->w[2];
+    //---------------------------------- Send acknowledgment ------------------------------
+    send(tcp->server,"a", 2, 0);
+
+    //---------------------------------- Print data for depuging ------------------------------
+    if (print){
+        printf("Connection delay (sec)= %+5.5f, %+5.5f, %+5.5f, %+5.5f\n", dt, data->enc[0], data->enc[1], data->enc[2]);
+    }
+}
+
+
+// Dynamic system for a derivative + filter
+void w_dot_dyn(float* y, float* x, float* xdot, float* u, float t)
+{
+  float wf[] = {50, 50, 50};
+
+  xdot[0] = -wf[0] * x[0] - wf[0] * wf[0] * u[0];
+  xdot[1] = -wf[1] * x[1] - wf[1] * wf[1] * u[1];
+  xdot[2] = -wf[2] * x[2] - wf[2] * wf[2] * u[2];
+
+  y[0] = x[0] + wf[0] * u[0];
+  y[1] = x[1] + wf[1] * u[1];
+  y[2] = x[2] + wf[2] * u[2];
+}
 #endif // BASIC
 
 

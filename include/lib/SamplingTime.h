@@ -1,4 +1,3 @@
-
 #ifndef SAMPLINGTIME_H
 #define SAMPLINGTIME_H
 

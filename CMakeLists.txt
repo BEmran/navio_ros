@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME}
   include/Navio/MPU9250.cpp
   include/Navio/LSM9DS1.cpp
   include/lib/SamplingTime.cpp
+  include/lib/DynSys.cpp
   include/${PROJECT_NAME}/navio_interface.cpp
   include/${PROJECT_NAME}/basic_ros_node.cpp
   include/lib/complementary_filter.cpp
