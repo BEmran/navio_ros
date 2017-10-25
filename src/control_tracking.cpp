@@ -19,8 +19,11 @@ int main(int argc, char** argv) {
     data.argv = argv;
     data.is_sensor_ready = false;
     data.is_tcp_ready = false;
-
-    data.wSys = DynSys(3, *w_dot_dyn);
+    data.motor_offset[0] = 0;
+    data.motor_offset[1] = 0;
+    data.motor_offset[2] = 0;
+    data.motor_offset[3] = 0;
+    data.wSys = DynSys(3, *wdotDyn);
     data.w = data.wSys.getY();
 
     struct tcpStruct tcp;
@@ -71,7 +74,7 @@ void control(dataStruct* data, float dt){
 
     static float ei[3] = {0.0, 0.0, 0.0};
     float e[3];
-    float cmd_max[3] = {0.15, 0.15, 0.5};
+    float cmd_max[3] = {0.2, 0.2, 0.5};
     float cmd_adj[3];
     float u_max[3] = {_MAX_ROLL,_MAX_PITCH,_MAX_YAW};
     //    float ang[3] = {data->imu.r,data->imu.p,data->imu.w};
@@ -89,6 +92,7 @@ void control(dataStruct* data, float dt){
         e[i] = cmd_adj[i] - ang[i];
 
         // control signal
+        //float tmp = ang[i] * data->angCon.kp[i] - w[i] * data->angCon.kd[i] + ei[i] * data->angCon.ki[i];
         float tmp = e[i] * data->angCon.kp[i] - w[i] * data->angCon.kd[i] + ei[i] * data->angCon.ki[i];
 
         // saturation

@@ -18,8 +18,11 @@ int main(int argc, char** argv) {
     data.argv = argv;
     data.is_sensor_ready = false;
     data.is_tcp_ready = false;
-
-    data.wSys = DynSys(3, *w_dot_dyn);
+    data.motor_offset[0] = 0;
+    data.motor_offset[1] = 0;
+    data.motor_offset[2] = 0;
+    data.motor_offset[3] = 0;
+    data.wSys = DynSys(3, *wdotDyn);
     data.w = data.wSys.getY();
 
     struct tcpStruct tcp;

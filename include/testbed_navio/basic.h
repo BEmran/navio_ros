@@ -35,10 +35,10 @@ Global variables
 #define _SENSOR_FREQ 500        // Sensor thread frequency in Hz
 #define _CONTROL_FREQ 200     // Control thread frequency in Hz
 #define _ROS_FREQ 100                // ROS thread frequency in Hz
-#define _MAX_ROLL   0.3
-#define _MAX_PITCH  0.3
-#define _MAX_YAW    0.6
-#define _MAX_Thrust  0.7
+#define _MAX_ROLL   0.4
+#define _MAX_PITCH  0.4
+#define _MAX_YAW    0.8
+#define _MAX_Thrust  0.6
 
 using namespace std;
 bool _CloseRequested = false;
@@ -60,6 +60,7 @@ struct dataStruct {
         float enc[3];
         float enc_dot[3];
         float pwmVal[4];
+        float motor_offset[4];
         int argc;
         char** argv;
         bool is_tcp_ready;
@@ -91,12 +92,12 @@ void *sensorsThread(void *data);
 void *controlThread(void *data);
 void *rosNodeThread(void *data);
 void ctrlCHandler(int signal);
-void du2motor(PWM* pwm, float du0,float du1,float du2,float du3);
+void du2motor(PWM* pwm, float du[4], float offset[4]);
 float sat(float x, float upper, float lower);
 void control(dataStruct* data, float dt);
 bool initTcp(tcpStruct* tcp);
 void getTcpData(tcpStruct* tcp, dataStruct* data, bool print);
-void w_dot_dyn(float* y, float* x, float* xdot, float* u, float t);
+void wdotDyn(float* y, float* x, float* xdot, float* u, float t);
 /*****************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
  ****************************************************************************************/
@@ -108,13 +109,13 @@ void ctrlCHandler(int signal) {
 /*****************************************************************************************
  du2motor: map du to PWM and send signal to motors
  *****************************************************************************************/
-void du2motor(PWM* pwm, float du0, float du1, float du2, float du3) {
+void du2motor(PWM* pwm, float du[4], float offset[4]) {
 
     //---------------------------------- apply saturation for du -----------------------------------
-    float dr = sat(du0, _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
-    float dp = sat(du1, _MAX_PITCH  , -_MAX_PITCH   ) / 2.0;
-    float dw = sat(du2, _MAX_YAW    , -_MAX_YAW     ) / 4.0;
-    float dz = sat(du3, _MAX_Thrust , 0             ) / 1.0;
+    float dr = sat(du[0], _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
+    float dp = sat(du[1], _MAX_PITCH  , -_MAX_PITCH  ) / 2.0;
+    float dw = sat(du[2], _MAX_YAW    , -_MAX_YAW     ) / 4.0;
+    float dz = sat(du[3],  _MAX_Thrust , 0                            ) / 4.0;
 
     //----------------------------------------- du to PWM ------------------------------------------
     float uPWM[4];
@@ -123,10 +124,10 @@ void du2motor(PWM* pwm, float du0, float du1, float du2, float du3) {
     uPWM[2] = dz + dp - dw;
     uPWM[3] = dz + dr + dw;
 
-    uPWM[0] = uPWM[0] + _SERVO_MIN;
-    uPWM[1] = uPWM[1] + _SERVO_MIN;
-    uPWM[2] = uPWM[2] + _SERVO_MIN;
-    uPWM[3] = uPWM[3] + _SERVO_MIN;
+    uPWM[0] = uPWM[0] + _SERVO_MIN + motor_offset[0];
+    uPWM[1] = uPWM[1] + _SERVO_MIN + motor_offset[1];
+    uPWM[2] = uPWM[2] + _SERVO_MIN + motor_offset[2];
+    uPWM[3] = uPWM[3] + _SERVO_MIN + motor_offset[3];
     //---------------------------------- send PWM duty cycle ------------------------------------
     setPWMDuty(pwm, uPWM);
 }
@@ -204,7 +205,20 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->angCon.kd.assign(1,1.0);
         data->angCon.kd.assign(2,2.0);
     }
-
+    std::vector<double> offset;
+    if (n.getParam("testbed/motors/offset", offset))
+        data->motor_offset[0] = offset[0];
+        data->motor_offset[1] = offset[1];
+        data->motor_offset[2] = offset[2];
+        data->motor_offset[3] = offset[3];
+        ROS_INFO("Found motor offset: m0[0] %f, m1[1] %f, m2[2] %f, m3[3] %f\n",data->motor_offset[0],data->motor_offset[1],data->motor_offset[2],data->motor_offset[3]);
+    else {
+        ROS_INFO("Can't find offset of the motors");
+        data->motor_offset[0] = 0.0;
+        data->motor_offset[1] = 0.0;
+        data->motor_offset[2] = 0.0;
+        data->motor_offset[3] = 0.0;
+    }
 }
 
 /*****************************************************************************************
@@ -283,7 +297,7 @@ void *controlThread(void *data) {
         dt = st.tsCalculat();
         if (dt < 0.01)
             control(my_data,dt);
-        du2motor(&my_data->pwm,my_data->du[0],my_data->du[1],my_data->du[2],my_data->du[3]);
+        du2motor(&my_data->pwm,my_data->du, my_data->motor_offset);
         dtsumm += dt;
         if (dtsumm > 2) {
             dtsumm = 0;
@@ -408,9 +422,10 @@ void getTcpData(tcpStruct* tcp, dataStruct* data, bool print = false){
     }
 }
 
-
-// Dynamic system for a derivative + filter
-void w_dot_dyn(float* y, float* x, float* xdot, float* u, float t)
+/*****************************************************************************************
+ wdotDyn: Dynamic system for a derivative + filter
+ *****************************************************************************************/
+void wdotDyn(float* y, float* x, float* xdot, float* u, float t)
 {
   float wf[] = {50, 50, 50};
 
@@ -422,6 +437,7 @@ void w_dot_dyn(float* y, float* x, float* xdot, float* u, float t)
   y[1] = x[1] + wf[1] * u[1];
   y[2] = x[2] + wf[2] * u[2];
 }
+
 #endif // BASIC
 
 
