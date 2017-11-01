@@ -60,7 +60,7 @@ struct dataStruct {
         float enc[3];
         float enc_dot[3];
         float pwmVal[4];
-        float motor_offset[4];
+        float motors_offset[4];
         int argc;
         char** argv;
         bool is_tcp_ready;
@@ -73,7 +73,8 @@ struct dataStruct {
         BasicRosNode* rosnode;
         imu_tools::ComplementaryFilter comp_filter_;
         const float* w;
-        DynSys wSys;
+        const float* ref;
+        DynSys wSys,refSys;
 };
 
 struct tcpStruct{
@@ -98,6 +99,7 @@ void control(dataStruct* data, float dt);
 bool initTcp(tcpStruct* tcp);
 void getTcpData(tcpStruct* tcp, dataStruct* data, bool print);
 void wdotDyn(float* y, float* x, float* xdot, float* u, float t);
+void refdotDyn(float* y, float* x, float* xdot, float* u, float t);
 /*****************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
  ****************************************************************************************/
@@ -124,10 +126,10 @@ void du2motor(PWM* pwm, float du[4], float offset[4]) {
     uPWM[2] = dz + dp - dw;
     uPWM[3] = dz + dr + dw;
 
-    uPWM[0] = uPWM[0] + _SERVO_MIN + motor_offset[0];
-    uPWM[1] = uPWM[1] + _SERVO_MIN + motor_offset[1];
-    uPWM[2] = uPWM[2] + _SERVO_MIN + motor_offset[2];
-    uPWM[3] = uPWM[3] + _SERVO_MIN + motor_offset[3];
+    uPWM[0] = uPWM[0] + _SERVO_MIN + offset[0];
+    uPWM[1] = uPWM[1] + _SERVO_MIN + offset[1];
+    uPWM[2] = uPWM[2] + _SERVO_MIN + offset[2];
+    uPWM[3] = uPWM[3] + _SERVO_MIN + offset[3];
     //---------------------------------- send PWM duty cycle ------------------------------------
     setPWMDuty(pwm, uPWM);
 }
@@ -206,18 +208,19 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->angCon.kd.assign(2,2.0);
     }
     std::vector<double> offset;
-    if (n.getParam("testbed/motors/offset", offset))
-        data->motor_offset[0] = offset[0];
-        data->motor_offset[1] = offset[1];
-        data->motor_offset[2] = offset[2];
-        data->motor_offset[3] = offset[3];
-        ROS_INFO("Found motor offset: m0[0] %f, m1[1] %f, m2[2] %f, m3[3] %f\n",data->motor_offset[0],data->motor_offset[1],data->motor_offset[2],data->motor_offset[3]);
+    if (n.getParam("testbed/motors/offset", offset)){
+        data->motors_offset[0] = offset[0];
+        data->motors_offset[1] = offset[1];
+        data->motors_offset[2] = offset[2];
+        data->motors_offset[3] = offset[3];
+        ROS_INFO("Found motor offset: m0[0] %f, m1[1] %f, m2[2] %f, m3[3] %f\n",data->motors_offset[0],data->motors_offset[1],data->motors_offset[2],data->motors_offset[3]);
+    }
     else {
         ROS_INFO("Can't find offset of the motors");
-        data->motor_offset[0] = 0.0;
-        data->motor_offset[1] = 0.0;
-        data->motor_offset[2] = 0.0;
-        data->motor_offset[3] = 0.0;
+        data->motors_offset[0] = 0.0;
+        data->motors_offset[1] = 0.0;
+        data->motors_offset[2] = 0.0;
+        data->motors_offset[3] = 0.0;
     }
 }
 
@@ -297,7 +300,7 @@ void *controlThread(void *data) {
         dt = st.tsCalculat();
         if (dt < 0.01)
             control(my_data,dt);
-        du2motor(&my_data->pwm,my_data->du, my_data->motor_offset);
+        du2motor(&my_data->pwm,my_data->du, my_data->motors_offset);
         dtsumm += dt;
         if (dtsumm > 2) {
             dtsumm = 0;
@@ -427,17 +430,30 @@ void getTcpData(tcpStruct* tcp, dataStruct* data, bool print = false){
  *****************************************************************************************/
 void wdotDyn(float* y, float* x, float* xdot, float* u, float t)
 {
-  float wf[] = {50, 50, 50};
+    float wf[] = {50, 50, 50};
 
-  xdot[0] = -wf[0] * x[0] - wf[0] * wf[0] * u[0];
-  xdot[1] = -wf[1] * x[1] - wf[1] * wf[1] * u[1];
-  xdot[2] = -wf[2] * x[2] - wf[2] * wf[2] * u[2];
+    xdot[0] = -wf[0] * x[0] - wf[0] * wf[0] * u[0];
+    xdot[1] = -wf[1] * x[1] - wf[1] * wf[1] * u[1];
+    xdot[2] = -wf[2] * x[2] - wf[2] * wf[2] * u[2];
 
-  y[0] = x[0] + wf[0] * u[0];
-  y[1] = x[1] + wf[1] * u[1];
-  y[2] = x[2] + wf[2] * u[2];
+    y[0] = x[0] + wf[0] * u[0];
+    y[1] = x[1] + wf[1] * u[1];
+    y[2] = x[2] + wf[2] * u[2];
 }
+/*****************************************************************************************
+ refdotDyn: Dynamic system for a derivative + filter
+ *****************************************************************************************/
+void refdotDyn(float* y, float* x, float* xdot, float* u, float t)
+{
+    float a0 = 30.31;
+    float a1 = 8;
+    float b = a0;
+    xdot[0] =                             x[1];
+    xdot[1] = - a0 * x[0] - a1 * x[1] +  b * u[0];
 
+    y[0] = x[0];
+    y[1] = x[1];
+}
 #endif // BASIC
 
 
