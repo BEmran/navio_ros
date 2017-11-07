@@ -5,6 +5,8 @@
  */
 #include "testbed_navio/basic.h"
 
+float adaptive(dataStruct* data, float cmd, float dt);
+
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/
@@ -103,49 +105,96 @@ void control(dataStruct* data, float dt){
         ei[i] += e[i] * dt;
     }
     // Send control signal
-    data->du[3] = 0.5;
+    data->du[3] =  2.0;
+    data->du[0] = adaptive(data,cmd_adj[0], dt);
 
-    static float b_est = 1;
-    static float W[5] = {0.0,0.0,0.0,0.0,0.0};
-    float bLower = 0.1;
-    float a0 = 30.31;
-    float a1 = 8;
-    float b = a0;
-    //
-    float vr = - a0 * data->ref[0] - a1 *data->ref[1] +  b * cmd_adj[0];
-    float er        = ang[0]         - data->ref[0];
-    float er_dot = data->w[0] - data->ref[1];
-    if (abs(er)<0.001)
-        er = 0;
-    if (abs(er_dot)<0.01)
-        er_dot = 0;
-    float sr = er_dot + 10.0 * er;
-    //
-    float h[5], Wdot[5];
+}
+float adaptive(dataStruct* data, float cmd, float dt){
+    // States
+    static float b_est = 1, a_est[2] = {15.0,1.2};
+    static float W[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static float W_dot_old[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static float dtsum = 0;
+
+    // Parameters
+    float bLimit = 0.1;
+    float L = 2.0, K = 3.0;
+    float a[2] = {11.3225,4.0};
+    float gama = 10.0 , eta = 10.0;
+
+    // Reference systems dynamic equations
+    float vr = -a[0] * data->ref[0] - a[1] * data->ref[1] + a[0] * cmd;
+
+    // Tracking Error
+    float e[2];
+    e[0] = data->enc[0] - data->ref[0];
+    e[1] = data->w[0] - data->ref[1];
+    e[0] = sat(e[0],0.001,-0.001);
+    e[1] = sat(e[1],0.01,-0.01);
+    float s = e[1] + L * e[0];
+
+    // Adaptive Neural Network
+    int node = 5, b = 2;
     float c[5] = {-1.0,-0.5,0.0,0.5,1.0};
-    float d_est = 0.0;
-    float gama = 1;
-    for (int ii=0;ii<5;ii++){
-        h[ii] = exp( - pow(sqrt((er - c[ii])*(er - c[ii])),2) / ( 2 * 2*2));
-        d_est = d_est + W[ii] * h[ii];
-        Wdot[ii] = gama * (er * h[ii] - 0.1 * abs(er) * W[ii]);
-        W[ii] = W[ii] + Wdot[ii] * dt;
+    float h, d_est = 0, W_dot;
+    for (int j = 0; j < node; j++){
+        h = exp( - pow(abs(e[0] - c[j]), 2) / ( 2.0 * b * b));
+        d_est += W[j]* h;
+        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j]);
+        W[j] += (W_dot + W_dot_old[j])/2.0 * dt;
+        W_dot_old[j] = W_dot;
     }
-    //
-    float vi = - 11.0 * sr -10.0 * er_dot + vr;
-    float ur = ( - d_est + vi ) / b_est;
-    float uCmd = sat(ur,u_max[0], -u_max[0]);
-    data->du[0] = uCmd;
-    float vh = vi - d_est - uCmd * b_est;
-    //
+    int k = 5;
+    for (int j = 0; j < node; j++){
+        h = exp( - pow(abs(data->enc[0] - c[j]), 2) / ( 2.0 * b * b));
+        d_est += W[j+k]* h;
+        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+        W_dot_old[j+k] = W_dot;
+    }
+    k = 10;
+    for (int j = 0; j < node; j++){
+        h = exp( - pow(abs(data->w[0] - c[j]), 2) / ( 2.0 * b * b));
+        d_est += W[j+k]* h;
+        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+        W_dot_old[j+k] = W_dot;
+    }
 
-    float eta = 10;
-    float b_est_dot = sr * ur * eta;
-    if (b_est_dot < 0 && b_est < bLower)
+    //d_est += -a_est[0] * data->enc[0] - a_est[1] * data->w[0];
+    d_est = sat (d_est,10,-10);
+
+    // Control Signal
+    float v = - K * s - L * e[1] + vr;
+    float u = ( - d_est + v ) / b_est;
+    u = sat(u,1,-1);
+    float vh = v - d_est - u * b_est;
+
+    // Adaptive Law
+    a_est[0]+= s * data->enc[0] / eta * dt;
+    a_est[1]+= s * data->w[0] / eta * dt;
+    float b_est_dot = s * u / eta;
+    if (b_est_dot < 0 && b_est < bLimit){
             b_est_dot = 1 / eta;
+    }
+    b_est += b_est_dot * dt;
 
-    b_est = b_est + b_est_dot * dt;
+    // Output
+    float ref_dot[1]= {vr - vh};
+    data->refSys.update(ref_dot, 0.0, dt);
 
-    float xref_dot[1]= {vr - vh};
-    data->refSys.update(xref_dot, 0.0, dt);
+    data->vec.clear();
+    data->vec.push_back(e[0]);
+    data->vec.push_back(s);
+    data->vec.push_back(data->ref[0]);
+    data->vec.push_back(d_est);
+    data->vec.push_back(b_est);
+
+    dtsum += dt;
+    if (dtsum > 0.2){
+        dtsum = 0;
+        printf("e = %+2.3f\t s = %+2.3f\t yr = %+2.3f\t d_est = %+2.3f\t b_est = %+2.3f\n",e[0],s,data->ref[0],d_est,b_est);
+    }
+
+    return u;
 }

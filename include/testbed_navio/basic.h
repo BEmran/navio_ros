@@ -35,10 +35,10 @@ Global variables
 #define _SENSOR_FREQ 500        // Sensor thread frequency in Hz
 #define _CONTROL_FREQ 200     // Control thread frequency in Hz
 #define _ROS_FREQ 100                // ROS thread frequency in Hz
-#define _MAX_ROLL   0.4
-#define _MAX_PITCH  0.4
-#define _MAX_YAW    0.8
-#define _MAX_Thrust  0.6
+#define _MAX_ROLL   1.0
+#define _MAX_PITCH  1.0
+#define _MAX_YAW    1.0
+#define _MAX_THRUST  4.0
 
 using namespace std;
 bool _CloseRequested = false;
@@ -71,6 +71,7 @@ struct dataStruct {
         InertialSensor *ins;
         controlStruct angCon;
         BasicRosNode* rosnode;
+        std::vector<float> vec;
         imu_tools::ComplementaryFilter comp_filter_;
         const float* w;
         const float* ref;
@@ -117,7 +118,7 @@ void du2motor(PWM* pwm, float du[4], float offset[4]) {
     float dr = sat(du[0], _MAX_ROLL   , -_MAX_ROLL    ) / 2.0;
     float dp = sat(du[1], _MAX_PITCH  , -_MAX_PITCH  ) / 2.0;
     float dw = sat(du[2], _MAX_YAW    , -_MAX_YAW     ) / 4.0;
-    float dz = sat(du[3],  _MAX_Thrust , 0                            ) / 4.0;
+    float dz = sat(du[3],  _MAX_THRUST , 0                      ) / 4.0;
 
     //----------------------------------------- du to PWM ------------------------------------------
     float uPWM[4];
@@ -333,7 +334,7 @@ void *rosNodeThread(void *data) {
     {
         my_data->rosnode->publishAllMsgs(my_data->imu.gyro,my_data->imu.acc,
                                          my_data->imu.quat,my_data->imu.mag,my_data->imu.rpy,
-                                         my_data->enc,my_data->du );
+                                         my_data->enc,my_data->du, my_data->vec);
         ros::spinOnce();
         loop_rate.sleep();
     }
@@ -445,11 +446,9 @@ void wdotDyn(float* y, float* x, float* xdot, float* u, float t)
  *****************************************************************************************/
 void refdotDyn(float* y, float* x, float* xdot, float* u, float t)
 {
-    float a0 = 30.31;
-    float a1 = 8;
-    float b = a0;
-    xdot[0] =                             x[1];
-    xdot[1] = - a0 * x[0] - a1 * x[1] +  b * u[0];
+    float a[2] = {11.3225,4.0};
+    xdot[0] =                                 x[1];
+    xdot[1] = - a[0] * x[0] - a[1] * x[1] +  a[0] * u[0];
 
     y[0] = x[0];
     y[1] = x[1];

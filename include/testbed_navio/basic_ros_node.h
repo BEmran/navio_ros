@@ -6,6 +6,7 @@
 #include "sensor_msgs/MagneticField.h"            // Magnetic sensor msg
 #include "geometry_msgs/TwistStamped.h"       // du msg
 #include "geometry_msgs/Vector3Stamped.h"   // RPY msg
+#include "std_msgs/Float32MultiArray.h"            // Multi Array msg
 
 class BasicRosNode
 {
@@ -18,6 +19,7 @@ class BasicRosNode
         ros::Publisher _pub_rpy;
         ros::Publisher _pub_enc;
         ros::Publisher _pub_du;
+        ros::Publisher _pub_array;
 
         ros::Subscriber _sub_ang;
         ros::Subscriber _sub_du;
@@ -28,9 +30,13 @@ class BasicRosNode
         geometry_msgs::Vector3Stamped _msg_rpy;
         geometry_msgs::Vector3Stamped _msg_enc;
         geometry_msgs::TwistStamped _msg_du;
+        std_msgs::Float32MultiArray _msg_array;
+        ros::Time _time;
 
         int queue_size;
         std::string _name;
+
+
 
     public:
         float _enc[3];
@@ -41,12 +47,13 @@ class BasicRosNode
         BasicRosNode(ros::NodeHandle nh, std::string name);
         ~BasicRosNode();
 
-        void publishAllMsgs(float gyro[3], float acc[3], float quat[4],float Mag[3],float rpy[3],float enc[3],float du[3]);
+        void publishAllMsgs(float gyro[3], float acc[3], float quat[4], float Mag[3], float rpy[3], float enc[3], float du[3],std::vector<float> vec);
         void publishIMUMsg(float gyro[3], float acc[3], float quat[4]);
         void publishMagMsg(float Mag[3]);
         void publishRPYMsg(float rpy[3]);
         void publishEncMsg(float enc[3]);
         void publishDuMsg(float du[3]);
+        void publishArrayMsg(std::vector<float> vec);
 
         void cmdDuCallback(const geometry_msgs::TwistStamped::ConstPtr& msg);
         void cmdAngCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);

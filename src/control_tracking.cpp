@@ -102,5 +102,5 @@ void control(dataStruct* data, float dt){
         ei[i] += e[i] * dt;
     }
     // Send control signal
-    data->du[3] = 0.5;
+    data->du[3] = 2.0;
 }

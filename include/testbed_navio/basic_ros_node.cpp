@@ -26,7 +26,7 @@ publishIMUMsg: Publish imu msgs
 ******************************************************************************************/
 void BasicRosNode::publishIMUMsg(float gyro[3], float acc[3], float quat[4])
 {
-    _msg_imu.header.stamp = ros::Time::now();
+    _msg_imu.header.stamp = _time;
     _msg_imu.header.seq++;
     _msg_imu.angular_velocity.x = gyro[0];
     _msg_imu.angular_velocity.y = gyro[1];
@@ -46,7 +46,7 @@ publishMagMsg: Publish magnetometer msgs
 ******************************************************************************************/
 void BasicRosNode::publishMagMsg(float Mag[3])
 {
-    _msg_mag.header.stamp = ros::Time::now();
+    _msg_mag.header.stamp = _time;
     _msg_mag.header.seq++;
     _msg_mag.magnetic_field.x = Mag[0];
     _msg_mag.magnetic_field.y = Mag[1];
@@ -59,7 +59,8 @@ publishRPYMsg: Publish roll pitch yaw angles msgs
 ******************************************************************************************/
 void BasicRosNode::publishRPYMsg(float rpy[3])
 {
-    _msg_rpy.header.stamp = ros::Time::now();
+
+    _msg_rpy.header.stamp = _time;
     _msg_rpy.header.seq++;
     _msg_rpy.vector.x = rpy[0];
     _msg_rpy.vector.y = rpy[1];
@@ -71,7 +72,7 @@ publishEncMsg: Publish encoder msgs
 ******************************************************************************************/
 void BasicRosNode::publishEncMsg(float enc[3])
 {
-    _msg_enc.header.stamp = ros::Time::now();
+    _msg_enc.header.stamp = _time;
     _msg_enc.header.seq++;
     _msg_enc.vector.x = enc[0];
     _msg_enc.vector.y = enc[1];
@@ -83,7 +84,7 @@ publishMsgs: Publish motors' inputs du msgs
 ******************************************************************************************/
 void BasicRosNode::publishDuMsg(float du[3])
 {
-    _msg_du.header.stamp = ros::Time::now();
+    _msg_du.header.stamp = _time;
     _msg_du.header.seq++;
     _msg_du.twist.angular.x = du[0];
     _msg_du.twist.angular.y = du[1];
@@ -95,13 +96,33 @@ void BasicRosNode::publishDuMsg(float du[3])
 /*****************************************************************************************
 publishMsgs: Publish motors' inputs du msgs
 ******************************************************************************************/
-void BasicRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float Mag[3], float rpy[3], float enc[3], float du[3])
+void BasicRosNode::publishArrayMsg(std::vector<float> vec)
 {
+    vec.push_back(_time.toSec());
+    vec.push_back(_time.toNSec());
+    // set up dimensions
+    _msg_array.layout.dim.push_back(std_msgs::MultiArrayDimension());
+    _msg_array.layout.dim[0].size = vec.size();
+    _msg_array.layout.dim[0].stride = 1;
+
+    // copy in the data
+    _msg_array.data.clear();
+    _msg_array.data.insert(_msg_array.data.end(), vec.begin(), vec.end());
+    _pub_array.publish(_msg_array);
+}
+
+/*****************************************************************************************
+publishMsgs: Publish motors' inputs du msgs
+******************************************************************************************/
+void BasicRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float Mag[3], float rpy[3], float enc[3], float du[3],std::vector<float> vec)
+{
+    _time = ros::Time::now();
     publishIMUMsg(gyro, acc, quat);
     publishMagMsg(Mag);
     publishRPYMsg(rpy);
     publishEncMsg(enc);
     publishDuMsg(du);
+    publishArrayMsg(vec);
 }
 
 /*****************************************************************************************
