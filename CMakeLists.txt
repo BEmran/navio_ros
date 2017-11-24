@@ -29,13 +29,14 @@ add_library(${PROJECT_NAME}
   include/lib/SamplingTime.cpp
   include/lib/DynSys.cpp
   include/${PROJECT_NAME}/navio_interface.cpp
-  include/${PROJECT_NAME}/basic_ros_node.cpp
+  include/${PROJECT_NAME}/ros_node_basic.cpp
+  include/${PROJECT_NAME}/ros_node_full.cpp
   include/lib/complementary_filter.cpp
 )
 
 ## Declare a catkin package
 catkin_package(
-  INCLUDE_DIRS include
+  INCLUDE_DIRS include 
   CATKIN_DEPENDS  roscpp rospy std_msgs geometry_msgs message_generation
   #LIBRARIES ${PROJECT_NAME}  # is needed??
 )
@@ -43,20 +44,30 @@ catkin_package(
 ## Specify additional locations of header files
 include_directories(include
   ${catkin_INCLUDE_DIRS}
+
   #${${PROJECT_NAME}_EXPORTED_TARGETS} # is needed??
   #${catkin_EXPORTED_TARGETS} # is needed??
 )
 
-add_executable(basic src/basic.cpp)
-target_link_libraries(basic  ${catkin_LIBRARIES} ${PROJECT_NAME})
-#add_dependencies(basic ${${PROJECT_NAME}_EXPORTED_TARGETS})
+add_executable(testbed_basic src/testbed_basic.cpp)
+target_link_libraries(testbed_basic ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(control_gyro src/control_gyro.cpp)
-target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(testbed_basic_tracking src/testbed_basic_tracking.cpp)
+target_link_libraries(testbed_basic_tracking ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(control_tracking src/control_tracking.cpp)
-target_link_libraries(control_tracking  ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(testbed_basic_adaptive src/testbed_basic_adaptive.cpp)
+target_link_libraries(testbed_basic_adaptive ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-add_executable(demo src/demo.cpp)
-target_link_libraries(demo  ${catkin_LIBRARIES} ${PROJECT_NAME})
+#add_executable(testbed_full src/testbed_full.cpp)
+#target_link_libraries(testbed_full ${catkin_LIBRARIES} ${PROJECT_NAME})
+##add_dependencies(basic ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
+#add_executable(control_gyro src/control_gyro.cpp)
+#target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(control_tracking src/control_tracking.cpp)
+#target_link_libraries(control_tracking  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(demo src/demo.cpp)
+#target_link_libraries(demo  ${catkin_LIBRARIES} ${PROJECT_NAME})
 

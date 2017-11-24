@@ -1,5 +1,5 @@
 /*
- * File:   main.cpp
+ * File:   navio_interface.cpp
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
@@ -58,6 +58,7 @@ InertialSensor* imuSetup(AHRS *ahrs, char *sensor_name, imuStruct* imu) {
 
     return ins;
 }
+
 /*****************************************************************************************
  gyroCalibrate: calibrate gyro sensor
 *****************************************************************************************/
@@ -181,7 +182,7 @@ void imuFiltering(InertialSensor *ins, AHRS *ahrs) {
     offset[1] /= i_max;
     offset[2] /= i_max;
 
-    //----------------------------- Set & display offset result ------------------------------------
+    //----------------------------- Set & display offset result --------------------------
     printf("Offsets are: %f %f %f\n", offset[0], offset[1], offset[2]);
     ahrs->setGyroOffset(offset[0], offset[1], offset[2]);
 }
@@ -191,13 +192,13 @@ void imuFiltering(InertialSensor *ins, AHRS *ahrs) {
  setPWMADuty: send PWM signal to motor
 *****************************************************************************************/
 void setPWMDuty(PWM* pwm, float uPWM[4]) {
-    //------------------------------ apply saturation for PWM ------------------------------------
-    uPWM[0] = sat(uPWM[0], _SERVO_MAX, _SERVO_MIN);
-    uPWM[1] = sat(uPWM[1], _SERVO_MAX, _SERVO_MIN);
-    uPWM[2] = sat(uPWM[2], _SERVO_MAX, _SERVO_MIN);
-    uPWM[3] = sat(uPWM[3], _SERVO_MAX, _SERVO_MIN);
+    //----------------- add minmum PWM value and apply saturation for PWM ----------------
+    uPWM[0] = pwmSat(uPWM[0] + _SERVO_MIN, _SERVO_MAX, _SERVO_MIN);
+    uPWM[1] = pwmSat(uPWM[1] + _SERVO_MIN, _SERVO_MAX, _SERVO_MIN);
+    uPWM[2] = pwmSat(uPWM[2] + _SERVO_MIN, _SERVO_MAX, _SERVO_MIN);
+    uPWM[3] = pwmSat(uPWM[3] + _SERVO_MIN, _SERVO_MAX, _SERVO_MIN);
 
-    //------------------------------------- set PWM duty --------------------------------------------
+    //------------------------------------- set PWM duty ---------------------------------
     pwm->set_duty_cycle(_MOTOR1, uPWM[0]);
     pwm->set_duty_cycle(_MOTOR2, uPWM[1]);
     pwm->set_duty_cycle(_MOTOR3, uPWM[2]);
@@ -207,7 +208,7 @@ void setPWMDuty(PWM* pwm, float uPWM[4]) {
 /*****************************************************************************************
  sat: apply saturation
 *****************************************************************************************/
-float sat(float x, float upper, float lower) {
+float pwmSat(float x, float upper, float lower) {
     if (x <= lower)
         x = lower;
     else if (x >= upper)
