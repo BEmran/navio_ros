@@ -3,8 +3,7 @@
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
-#include "testbed_navio/testbed_basic.h"
-
+#include "testbed_navio/testbed_full.h"
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/
@@ -17,6 +16,7 @@ int main(int argc, char** argv) {
     struct dataStruct data;
     data.argc = argc;
     data.argv = argv;
+    data.is_sensors_ready = false;
     data.is_maintcp_ready = false;
     data.is_control_ready = false;
     data.pwm_offset[0] = 0;
@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     struct tcpStruct tcp;
     tcp.portNum = 1500;
     //----------------------------------------- Start threads ---------------------------------------
+    pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
     pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
     //------------------------------------------ initialize tcp ----------------------------------------
@@ -51,7 +52,8 @@ int main(int argc, char** argv) {
     printf("\n\n=> Connection terminated");
     close(tcp.server);
     close(tcp.client);
-    //----------------------------------------- Exit procedure -------------------------------------
+    //----------------------------------------- Exit procedure ---------------------------------
+    pthread_cancel(_Thread_Sensors);
     pthread_cancel(_Thread_Control);
     pthread_cancel(_Thread_RosNode);
     printf("Close program\n");

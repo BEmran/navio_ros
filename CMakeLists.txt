@@ -58,8 +58,8 @@ target_link_libraries(testbed_basic_tracking ${catkin_LIBRARIES} ${PROJECT_NAME}
 add_executable(testbed_basic_adaptive src/testbed_basic_adaptive.cpp)
 target_link_libraries(testbed_basic_adaptive ${catkin_LIBRARIES} ${PROJECT_NAME})
 
-#add_executable(testbed_full src/testbed_full.cpp)
-#target_link_libraries(testbed_full ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(testbed_full src/testbed_full.cpp)
+target_link_libraries(testbed_full ${catkin_LIBRARIES} ${PROJECT_NAME})
 ##add_dependencies(basic ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 #add_executable(control_gyro src/control_gyro.cpp)
