@@ -125,14 +125,14 @@ void FullRosNode::publishDuMsg(float du[3]){
 /*****************************************************************************************
 publishMsgs: Publish motors' inputs du msgs
 ******************************************************************************************/
-void FullRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float mag[3], float rpy[3], float w[3], float enc[3], float du[3]){
+void FullRosNode::publishAllMsgs(float gyro[3], float acc[3], float quat[4], float mag[3], float rpy[3], float w[3], float du[3], float enc[3]){
     _time = ros::Time::now();
     publishIMUMsg(gyro, acc, quat);
     publishMagMsg(mag);
-    publishRPYMsg(rpy);
-    publishEncMsg(enc);
+    publishRPYMsg(rpy);   
     publishWMsg(w);
     publishDuMsg(du);
+    publishEncMsg(enc);
 }
 
 /*****************************************************************************************

@@ -34,7 +34,7 @@ class FullRosNode
         FullRosNode();
         FullRosNode(ros::NodeHandle nh, std::string name);
         ~FullRosNode();
-        void publishAllMsgs(float gyro[3], float acc[3], float quat[4], float mag[3], float rpy[3], float w[3], float enc[3], float du[3]);
+        void publishAllMsgs(float gyro[3], float acc[3], float quat[4], float mag[3], float rpy[3], float w[3], float du[3], float enc[3]);
         void publishWMsg(float w[3]);
         void publishDuMsg(float du[3]);
         void publishEncMsg(float enc[3]);
