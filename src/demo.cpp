@@ -3,7 +3,7 @@
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
-#include "testbed_navio/basic.h"
+#include "testbed_navio/testbed_full.h"
 /*****************************************************************************************
 main: Run main function
  ****************************************************************************************/

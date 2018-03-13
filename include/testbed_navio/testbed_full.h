@@ -28,6 +28,9 @@ Header files
 #include "lib/DynSys.h"         // Dyanmic system
 #include "testbed_navio/ros_node_full.h"   // ROS node
 
+#include <time.h>       /* time_t, struct tm, time, localtime */
+#include <fstream> // file
+
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -64,8 +67,10 @@ struct dataStruct {
         float enc[3];
         float pwm_val[4];
         float pwm_offset[4];
+        float record[20];
         const float* w;
         const float* ref;
+        FILE *file;
         PWM pwm;
         DynSys wSys;
         DynSys refSys;
@@ -102,7 +107,7 @@ bool initTcp(tcpStruct* tcp);
 void getTcpData(tcpStruct* tcp, dataStruct* data, bool print);
 void wdotDyn(float* y, float* x, float* xdot, float* u, float t);
 void initializeParams(ros::NodeHandle& n, dataStruct* data);
-
+void printRecord(FILE* file,float data[20]);
 /*****************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
  ****************************************************************************************/
@@ -167,12 +172,15 @@ void *controlThread(void *data) {
         sleep(1);
     }
     my_data->is_control_ready = true;
+    //---------------------------- Print data header ------------------------------------
+    fprintf(data->file, "time,roll,pitch,yaw,p,q,r,ur,up,uw,uz,d0,d1,d2,d3,d4,d5\n");
     //------------------------------------------  Main loop -------------------------------------------
     while (!_CloseRequested) {
         dt = st.tsCalculat();   // calculate sampling time
         if (dt < 0.01)          // to check the sampling is not big
             control(my_data,dt);
         du2motor(&my_data->pwm,my_data->du, my_data->pwm_offset);
+        printRecord(my_data->file,my_data->record);
         dtsumm += dt;
         if (dtsumm > 2.0) {
             dtsumm = 0;
@@ -389,6 +397,17 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->pwm_offset[3] = 0.0;
     }
 }
+
+void printRecord(FILE* file,float data[20]){
+    //---------------------------- Record data header -----------------------------------
+    char buf[512];
+    char *pos = buf;
+    for (int i = 0; i != 20; i++) {
+        pos += sprintf(pos, "%5.5f, ", data[i]);
+    }
+    fprintf(file, "%s\n", buf);
+}
+
 #endif // TESTBED_FULL
 
 

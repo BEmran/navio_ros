@@ -11,7 +11,6 @@ int main(int argc, char** argv) {
     //----------------------------------------- Welcome msg -------------------------------------
     printf("Start Program...\n");
     signal(SIGINT, ctrlCHandler);
-
     //------------------------------------- Define main variables --------------------------------
     struct dataStruct data;
     data.argc = argc;
@@ -35,19 +34,42 @@ int main(int argc, char** argv) {
     //------------------------------------------ initialize tcp ----------------------------------------
     data.is_maintcp_ready = initTcp(&tcp);
     SamplingTime st(_MAINTCP_FREQ);
+    //---------------------------- Close record file -----------------------------------
+    char file_name[32];
+    char dir_name[] = "/home/pi";
+    int fileNumber = 0;
+    //---------------------------- Create new record file -------------------------------
+    do {
+        sprintf(file_name, "%s/test_%.2d.csv", dir_name, fileNumber++);
+    } while (access(file_name, F_OK) == 0);
+    data->*file = fopen(image_name, "w");
+    //------------------------------ Check the file name --------------------------------
+    if (data->file == NULL) {
+        printf("Error creating file!\n");
+        exit(1);
+    }
+    //-------------------------- Display Information for user ---------------------------
+    printf("a file successfully created to record testbed data\n");
+    printf("record file path and name: %s",file_name);
+    //------------------------ Record starting time of test -----------------------------
+    time_t rawtime;
+    time (&rawtime);
+    struct tm * timeinfo = localtime (&rawtime);
+    sprintf(file_name,"Current local time and date: %s", asctime(timeinfo));
+    //-------------------------------------------- Min loop ------------------------------------------
     float dt, dtsumm = 0;
     bool enablePrint = false;
-    //-------------------------------------------- Min loop ------------------------------------------
     while(!_CloseRequested && data.is_maintcp_ready){
         dt = st.tsCalculat();
-
-        getTcpData(&tcp, &data, dt, enablePrint);
+        getTcpData(&tcp, &data, dt, enablePrint);     
         dtsumm += dt;
         if (dtsumm > 2) {
             dtsumm = 0;
             printf("maintcp thread with %d Hz\n", int(1 / dt));
         }
     }
+    //------------------------------------- Close record file -----------------------------------
+    fclose(file);
     //----------------------------------- Terminate tcp connection -----------------------------
     printf("\n\n=> Connection terminated");
     close(tcp.server);
@@ -56,8 +78,8 @@ int main(int argc, char** argv) {
     pthread_cancel(_Thread_Sensors);
     pthread_cancel(_Thread_Control);
     pthread_cancel(_Thread_RosNode);
-    printf("Close program\n");
 
+    printf("Close program\n");
     return 0;
 }
 

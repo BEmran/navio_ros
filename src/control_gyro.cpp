@@ -3,8 +3,12 @@
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
-#include "testbed_navio/basic.h"
-
+#include "testbed_navio/testbed_full.h"
+#include <iostream>
+#include <fstream>
+using namespace std;
+ofstream myfile;
+char buffer[1024];
 float adaptive(dataStruct* data, float cmd, float dt);
 
 /*****************************************************************************************
@@ -14,6 +18,7 @@ int main(int argc, char** argv) {
     //----------------------------------------- Welcome msg -------------------------------------
     printf("Start Program...\n");
     signal(SIGINT, ctrlCHandler);
+    myfile.open ("data.txt");
 
     //------------------------------------- Define main variables --------------------------------
     struct dataStruct data;
@@ -21,10 +26,11 @@ int main(int argc, char** argv) {
     data.argv = argv;
     data.is_sensor_ready = false;
     data.is_tcp_ready = false;
-    data.motors_offset[0] = 0;
-    data.motors_offset[1] = 0;
-    data.motors_offset[2] = 0;
-    data.motors_offset[3] = 0;
+    data.is_control_ready = false;
+    data.pwm_offset[0] = 0;
+    data.pwm_offset[1] = 0;
+    data.pwm_offset[2] = 0;
+    data.pwm_offset[3] = 0;
     data.wSys = DynSys(3, *wdotDyn);
     data.w = data.wSys.getY();
     data.refSys = DynSys(2, *refdotDyn);
@@ -32,7 +38,7 @@ int main(int argc, char** argv) {
     struct tcpStruct tcp;
     tcp.portNum = 1500;
     //----------------------------------------- Start threads ---------------------------------------
-    pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
+    //pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
     pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
 
@@ -62,11 +68,11 @@ int main(int argc, char** argv) {
 
     //----------------------------------------- Exit procedure -------------------------------------
 
-    pthread_cancel(_Thread_Sensors);
+    //pthread_cancel(_Thread_Sensors);
     pthread_cancel(_Thread_Control);
     pthread_cancel(_Thread_RosNode);
     printf("Close program\n");
-
+    myfile.close();
     return 0;
 }
 
@@ -115,6 +121,7 @@ float adaptive(dataStruct* data, float cmd, float dt){
     static float W[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     static float W_dot_old[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     static float dtsum = 0;
+    static float si = 0;
 
     // Parameters
     float bLimit = 0.1;
@@ -134,38 +141,40 @@ float adaptive(dataStruct* data, float cmd, float dt){
     float s = e[1] + L * e[0];
 
     // Adaptive Neural Network
-    int node = 5, b = 2;
-    float c[5] = {-1.0,-0.5,0.0,0.5,1.0};
+    int node = 5, b = 1;
+    float c[5] =  {-0.01,-0.05,0.0,0.05,0.01};
     float h, d_est = 0, W_dot;
     for (int j = 0; j < node; j++){
-        h = exp( - pow(abs(e[0] - c[j]), 2) / ( 2.0 * b * b));
+        //printf("e=%+2.4f\t c=%+2.4f\t pow=%+2.4f\t ff=%+2.4f\t h=%+2.4f\n",e[0],c[j],pow(abs(e[0] - c[j]), 2),- pow(abs(e[0] - c[j]), 2) / ( 2.0 * 0.1),h);
+        h = exp( - pow(abs(e[0] - c[j]), 2) / ( 2.0 * 0.1));
         d_est += W[j]* h;
         W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j]);
         W[j] += (W_dot + W_dot_old[j])/2.0 * dt;
         W_dot_old[j] = W_dot;
     }
-    int k = 5;
-    for (int j = 0; j < node; j++){
-        h = exp( - pow(abs(data->enc[0] - c[j]), 2) / ( 2.0 * b * b));
-        d_est += W[j+k]* h;
-        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
-        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
-        W_dot_old[j+k] = W_dot;
-    }
-    k = 10;
-    for (int j = 0; j < node; j++){
-        h = exp( - pow(abs(data->w[0] - c[j]), 2) / ( 2.0 * b * b));
-        d_est += W[j+k]* h;
-        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
-        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
-        W_dot_old[j+k] = W_dot;
-    }
+//    int k = 5;
+//    for (int j = 0; j < node; j++){
+//        h = exp( - pow(abs(data->enc[0] - c[j]), 2) / ( 2.0 * b * b));
+//        d_est += W[j+k]* h;
+//        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+//        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+//        W_dot_old[j+k] = W_dot;
+//    }
+//    k = 10;
+//    for (int j = 0; j < node; j++){
+//        h = exp( - pow(abs(data->w[0] - c[j]), 2) / ( 2.0 * b * b));
+//       d_est += W[j+k]* h;
+//        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+//        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+//        W_dot_old[j+k] = W_dot;
+//    }
 
     //d_est += -a_est[0] * data->enc[0] - a_est[1] * data->w[0];
-    d_est = sat (d_est,10,-10);
+    d_est = sat(d_est,10,-10);
 
     // Control Signal
-    float v = - K * s - L * e[1] + vr;
+    float v = - K * s - L * e[1] + vr + 1.0*si;
+    si += s * dt;
     float u = ( - d_est + v ) / b_est;
     u = sat(u,1,-1);
     float vh = v - d_est - u * b_est;
@@ -183,17 +192,15 @@ float adaptive(dataStruct* data, float cmd, float dt){
     float ref_dot[1]= {vr - vh};
     data->refSys.update(ref_dot, 0.0, dt);
 
-    data->vec.clear();
-    data->vec.push_back(e[0]);
-    data->vec.push_back(s);
-    data->vec.push_back(data->ref[0]);
-    data->vec.push_back(d_est);
-    data->vec.push_back(b_est);
+    sprintf(buffer,"%f,%f,%f,%f,%f,%f,%f,%f\n",dt,e[0],cmd,data->enc[0],data->ref[0],u,d_est,b_est);
+    myfile << buffer;
 
+    static int ii = 0;
     dtsum += dt;
     if (dtsum > 0.2){
         dtsum = 0;
-        printf("e = %+2.3f\t s = %+2.3f\t yr = %+2.3f\t d_est = %+2.3f\t b_est = %+2.3f\n",e[0],s,data->ref[0],d_est,b_est);
+        printf("%d: e = %+2.3f\t s = %+2.3f\t yr = %+2.3f\t d_est = %+2.3f\t b_est = %+2.3f\n",ii++,
+        (float) e[0], (float) s, (float) data->ref[0], (float) d_est, (float) b_est);
     }
 
     return u;
