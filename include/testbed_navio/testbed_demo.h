@@ -183,7 +183,7 @@ void *sensorsThread(void *data) {
     while (!_CloseRequested) {
         dt = ts.updateTs();                 // calculate sampling time
         my_data->sensors->update();         // update Sensor
-        my_data->encoder->updateCounts();
+        my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
 
         my_data->record[1] = my_data->sensors->imu.ax;
@@ -320,7 +320,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
 
     // Get du max min values -----------------------------------------------------
     std::vector<double> du;
-    if (_nh.getParam("testbed/du_command/thrust", du)){
+    if (n.getParam("testbed/du_command/thrust", du)){
         data->du_min[0] = du[0];
         data->du_max[0] = du[1];
     }
@@ -328,7 +328,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_min[0] = 0.0;
         data->du_max[0] = 2.0;
     }
-    if (_nh.getParam("testbed/du_command/roll", du)){
+    if (n.getParam("testbed/du_command/roll", du)){
         data->du_min[1] = du[0];
         data->du_max[1] = du[1];
     }
@@ -336,7 +336,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_min[1] = -0.2;
         data->du_max[1] = +0.2;
     }
-    if (_nh.getParam("testbed/du_command/pitch", du)){
+    if (n.getParam("testbed/du_command/pitch", du)){
         data->du_min[2] = du[0];
         data->du_max[2] = du[1];
     }
@@ -344,7 +344,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_min[2] = -0.2;
         data->du_max[2] = +0.2;
     }
-    if (_nh.getParam("testbed/du_command/yaw", du)){
+    if (n.getParam("testbed/du_command/yaw", du)){
         data->du_min[3] = du[0];
         data->du_max[3] = du[1];
     }
