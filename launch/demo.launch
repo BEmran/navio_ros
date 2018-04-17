@@ -1,0 +1,5 @@
+<launch>
+    <!-- TF broadcaster Node -->
+    <node pkg="testbed_navio" type="demo" name="demo" launch-prefix="sudo" output="screen"/>
+</launch>
+
