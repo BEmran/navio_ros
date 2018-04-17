@@ -116,10 +116,10 @@ void RosNode::publishDuMsg(const float du[4]){
 
     msg_du.header.stamp = _time;
     msg_du.header.seq++;
-    msg_du.twist.angular.x = du[0];
-    msg_du.twist.angular.y = du[1];
-    msg_du.twist.angular.z = du[2];
-    msg_du.twist.linear.x  = du[3];
+    msg_du.twist.linear.z  = du[0];
+    msg_du.twist.angular.x = du[1];
+    msg_du.twist.angular.y = du[2];
+    msg_du.twist.angular.z = du[3];
     _pub_du.publish(msg_du);
 }
 
@@ -138,8 +138,9 @@ duCmdCallback: Read command duty cycle
 ******************************************************************************************/
 void RosNode::cmdDuCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
 {
-    _cmd_du[0] = msg->twist.angular.x;
-    _cmd_du[1] = msg->twist.angular.y;
-    _cmd_du[2] = msg->twist.angular.z;
-    _cmd_du[3] = msg->twist.linear.z;
+    _cmd_du[0] = msg->twist.linear.z;
+    _cmd_du[1] = msg->twist.angular.x;
+    _cmd_du[2] = msg->twist.angular.y;
+    _cmd_du[3] = msg->twist.angular.z;
+
 }
