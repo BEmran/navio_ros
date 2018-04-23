@@ -183,11 +183,11 @@ void *sensorsThread(void *data) {
     // Main loop ----------------------------------------------------------------------------------
     TimeSampling ts(_SENSORS_FREQ);
     float dt, dtsumm = 0;
-    printf("sensor is ready\n");
+    printf("sensor is ready now\n");
     while (!_CloseRequested) {
         dt = ts.updateTs();                 // calculate sampling time
         my_data->sensors->update();         // update Sensor
-        my_data->encoder->updateCounts();   // update encoders counts
+        //my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
         my_data->enc_angle[0] = my_data->enc_angle[0] * _Encoder_Direction_R; // change angle direction
         my_data->enc_angle[1] = my_data->enc_angle[1] * _Encoder_Direction_P; // change angle direction
