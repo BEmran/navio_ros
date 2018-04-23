@@ -24,7 +24,7 @@ Global variables
 #define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
 #define _Encoder_Direction_R  -1   // ecnoder angle dirction for roll encoder
-#define _Encoder_Direction_P  -1   // ecnoder angle dirction for pitch encoder
+#define _Encoder_Direction_P  +1   // ecnoder angle dirction for pitch encoder
 #define _Encoder_Direction_Y  -1   // ecnoder angle dirction for yaw encoder
 
 pthread_t _Thread_Sensors;
