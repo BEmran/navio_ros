@@ -227,7 +227,7 @@ bool Encoder::init(int i) {
   Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
 
   // The channel firing events every DataInterval
-  PhidgetEncoder_setPositionChangeTrigger((PhidgetHandle) _eh[i],(uint32_t) 0);
+  PhidgetEncoder_setPositionChangeTrigger( _eh[i],(uint32_t) 0);
 
   return true;
 }
