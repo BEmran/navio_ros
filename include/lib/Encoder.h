@@ -17,6 +17,10 @@ static void CCONV onAttachHandler(PhidgetHandle h, void *ctx);
 static void CCONV onDetachHandler(PhidgetHandle h, void *ctx);
 static void CCONV errorHandler(PhidgetHandle h, void *ctx,
         Phidget_ErrorEventCode errorCode, const char *errorString);
+static void CCONV onPositionChangeHandler(PhidgetEncoderHandle ch,
+        void *ctx, int positionChange, double timeChange,
+        int indexTriggered);
+int64_t tmp_counts[3];
 
 namespace {
     #define MAXCOUNT 40000.0
