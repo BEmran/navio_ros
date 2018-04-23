@@ -70,7 +70,9 @@ Encoder::Encoder(bool x) {
 
       // Set data interval for each channel to 8 ms
       PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
-
+      uint32_t tmp;
+      PhidgetEncoder_getDataInterval( _eh[i], &tmp);
+      printf("PhidgetEncoder_getDataInterval %d \n", tmp);
       // Open the channel synchronously: waiting a maximum of 5 seconds.
       res = Phidget_openWaitForAttachment((PhidgetHandle) _eh[i], 5000);
       if (res != EPHIDGET_OK) {
@@ -129,7 +131,7 @@ void Encoder::getCounts(long counts[]) const {
 //**************************************************************************
 void Encoder::readAnglesRad(float angle[]) const {
   for (int ch = 0; ch < 3; ++ch) {
-    angle[ch] = _count[ch] / MAXCOUNT * 2 * PI;
+    angle[ch] = tmp_counts[ch] / MAXCOUNT * 2 * PI;
   }
 }
 //**************************************************************************
@@ -137,7 +139,7 @@ void Encoder::readAnglesRad(float angle[]) const {
 //**************************************************************************
 void Encoder::readAnglesDeg(float angle[]) const {
   for (int ch = 0; ch < 3; ++ch) {
-    angle[ch] = tmp_counts[ch] / MAXCOUNT * 360.0;
+    angle[ch] = _count[ch] / MAXCOUNT * 360.0;
   }
 }
 //**************************************************************************
@@ -225,9 +227,14 @@ bool Encoder::init(int i) {
 
   // Set data interval for device to 8 ms
   Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
+  uint32_t tmp;
+  Phidget_getDataInterval((PhidgetHandle) _eh[i], &tmp);
+  printf("Phidget_getDataInterval %d \n", tmp);
 
   // The channel firing events every DataInterval
   PhidgetEncoder_setPositionChangeTrigger( _eh[i],(uint32_t) 0);
+  PhidgetEncoder_getPositionChangeTrigger( _eh[i], &tmp);
+  printf("PhidgetEncoder_getPositionChangeTrigger %d \n", tmp);
 
   return true;
 }
