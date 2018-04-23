@@ -23,6 +23,10 @@ Global variables
 #define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
 #define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
+#define _Encoder_Direction_R  -1   // ecnoder angle dirction for roll encoder
+#define _Encoder_Direction_P  -1   // ecnoder angle dirction for pitch encoder
+#define _Encoder_Direction_Y  -1   // ecnoder angle dirction for yaw encoder
+
 pthread_t _Thread_Sensors;
 pthread_t _Thread_RosNode;
 pthread_t _Thread_Control;
@@ -145,7 +149,7 @@ void *controlThread(void *data) {
         dtsumm += dt;
         if (dtsumm > 2.0) {
             dtsumm = 0;
-            printf("Control thread: running fine with %.4d Hz\n", int(1 / dt));
+            printf("Control thread: running fine with %4d Hz\n", int(1 / dt));
         }
     }
 
@@ -185,6 +189,9 @@ void *sensorsThread(void *data) {
         my_data->sensors->update();         // update Sensor
         my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
+        my_data->enc_angle[0] = my_data->enc_angle[0] * _Encoder_Direction_R; // change angle direction
+        my_data->enc_angle[1] = my_data->enc_angle[1] * _Encoder_Direction_P; // change angle direction
+        my_data->enc_angle[2] = my_data->enc_angle[2] * _Encoder_Direction_Y; // change angle direction
 
         my_data->record[1] = my_data->sensors->imu.ax;
         my_data->record[2] = my_data->sensors->imu.ay;
@@ -206,7 +213,7 @@ void *sensorsThread(void *data) {
         dtsumm += dt;
         if (dtsumm > 2) {
             dtsumm = 0;
-            printf("Sensors thread: running fine with %.4d Hz\n", int(1 / dt));
+            printf("Sensors thread: running fine with %4d Hz\n", int(1 / dt));
         }
     }
 
