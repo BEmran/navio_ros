@@ -7,25 +7,34 @@
 
 #include "Encoder.h"
 //**************************************************************************
-// onAttachHandler
+// on Attach Handler
 //**************************************************************************
 static void CCONV onAttachHandler(PhidgetHandle h, void *ctx) {
     int* channel = (int*) ctx;
     printf("channel %d on yor device attached\n", *channel);
 }
 //**************************************************************************
-// onDetachHandler
+// on Detach Handler
 //**************************************************************************
 static void CCONV onDetachHandler(PhidgetHandle h, void *ctx) {
     int* channel = (int*) ctx;
     printf("channel %d on your device detached\n", *channel);
 }
 //**************************************************************************
-// errorHandler
+// error Handler
 //**************************************************************************
 static void CCONV errorHandler(PhidgetHandle h, void *ctx,
         Phidget_ErrorEventCode errorCode, const char *errorString) {
     fprintf(stderr, "Error: %s (%d)\n", errorString, errorCode);
+}
+//**************************************************************************
+// on Position Change Handler
+//**************************************************************************
+static void CCONV onPositionChangeHandler(PhidgetEncoderHandle ch,
+        void *ctx, int positionChange, double timeChange,
+        int indexTriggered) {
+    int* counts = (int*) ctx;
+    *counts = positionChange;
 }
 //**************************************************************************
 // Encoder
@@ -58,9 +67,6 @@ Encoder::Encoder(bool x) {
 
             // get info of encoder device
             getInfo(i);
-
-            // Set data interval for device to 8 ms
-            Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
 
             // Set data interval for each channel to 8 ms
             PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
@@ -210,6 +216,16 @@ bool Encoder::init(int i) {
         fprintf(stderr, "failed to assign on error handler\n");
         return false;
     }
+
+    res = PhidgetEncoder_setOnPositionChangeHandler(_eh[i], onPositionChangeHandler, &_count[i]);
+    if (res != EPHIDGET_OK) {
+      fprintf(stderr, "failed to assign OnPositionChange handler\n");
+      return false;
+    }
+
+    // Set data interval for device to 8 ms
+    Phidget_setDataInterval((PhidgetHandle) _eh[i], 8);
+
     return true;
 }
 //**************************************************************************

@@ -391,7 +391,8 @@ void printRecord(FILE* file, float data[]){
 
     // Calculate delta time
     gettimeofday(&tv, NULL);
-    data[0] = (float)tv.tv_sec + (float)tv.tv_usec / 1000000.0;
+    long tmp = 1000000L * tv.tv_sec + tv.tv_usec;
+    data[0] = tmp / 1000000.0;
 
     // get data stored in data array
     for (int i = 0; i < size; ++i) {
