@@ -44,9 +44,9 @@ void du2motor(PWM* pwm, float du[4], float offset[4], float du_min[4], float du_
 
     // du to PWM
     float uPWM[4];
-    uPWM[0] = dz - dp - dw + offset[0];
+    uPWM[0] = dz + dp - dw + offset[0];
     uPWM[1] = dz - dr + dw + offset[1];
-    uPWM[2] = dz + dp - dw + offset[2];
+    uPWM[2] = dz - dp - dw + offset[2];
     uPWM[3] = dz + dr + dw + offset[3];
 
     // send PWM duty cycle
