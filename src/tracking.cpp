@@ -99,8 +99,32 @@ int main(int argc, char** argv) {
 control: Perfourm control loop
 ******************************************************************************************/
 void control(dataStruct* data, float dt){
-    for (int i = 0; i < 4; i++){
-        data->du[i] = data->rosnode->_cmd_du[i];
+
+    static float ei[3] = {0.0, 0.0, 0.0};
+
+    float e[3];
+    float cmd_max[3] = {0.2, 0.2, 0.5};
+    float cmd_adj[3];
+    float ang[3] = {data->enc_angle[0], data->enc_angle[1],data->enc_angle[2]};
+    float w[3] = {0.0, 0.0, 0.0};
+
+    data->du[0] = 2.0;
+    // LQR control
+    for (int i = 0; i < 3; i++)
+    {
+        // adjust cmd
+        cmd_adj[i] = sat(data->rosnode->_cmd_ang[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
+
+        // traking error
+        e[i] = cmd_adj[i] - ang[i];
+
+        // control signal
+        data->du[i+1] = e[i] * data->angConGain.kp[i] - w[i] * data->angConGain.kd[i] + ei[i] * data->angConGain.ki[i];
+
+        // integration
+        ei[i] += e[i] * dt;
     }
+    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
+           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
 }
 
