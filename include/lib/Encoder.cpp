@@ -68,11 +68,6 @@ Encoder::Encoder(bool x) {
       // get info of encoder device
       getInfo(i);
 
-      // Set data interval for each channel to 8 ms
-      PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
-      uint32_t tmp;
-      PhidgetEncoder_getDataInterval( _eh[i], &tmp);
-      printf("PhidgetEncoder_getDataInterval %u \n", tmp);
       // Open the channel synchronously: waiting a maximum of 5 seconds.
       res = Phidget_openWaitForAttachment((PhidgetHandle) _eh[i], 5000);
       if (res != EPHIDGET_OK) {
@@ -87,6 +82,23 @@ Encoder::Encoder(bool x) {
         printf("Initialization of channel %d on device %d is successful\n", i, _serial);
       }
       setEnable(true, i);
+
+      uint32_t tmp;
+      // Set data interval for each channel to 8 ms
+      PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
+      PhidgetEncoder_getDataInterval( _eh[i], &tmp);
+      printf("PhidgetEncoder_getDataInterval %u %u \n", (uint32_t) 0, tmp);
+
+      // Set data interval for device to 8 ms
+      Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
+      Phidget_getDataInterval((PhidgetHandle) _eh[i], &tmp);
+      printf("Phidget_getDataInterval %u %u \n", (uint32_t) 0, tmp);
+
+      // The channel firing events every DataInterval
+      PhidgetEncoder_setPositionChangeTrigger( _eh[i],(uint32_t) 0);
+      PhidgetEncoder_getPositionChangeTrigger( _eh[i], &tmp);
+      printf("PhidgetEncoder_getPositionChangeTrigger %u %u \n", (uint32_t) 0, tmp);
+
     } else {
       printf("Initialization of channel %d on device %d is unsuccessful\n", i, _serial);
     }
@@ -224,17 +236,6 @@ bool Encoder::init(int i) {
     fprintf(stderr, "failed to assign OnPositionChange handler\n");
     return false;
   }
-
-  // Set data interval for device to 8 ms
-  Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
-  uint32_t tmp;
-  Phidget_getDataInterval((PhidgetHandle) _eh[i], &tmp);
-  printf("Phidget_getDataInterval %u \n", tmp);
-
-  // The channel firing events every DataInterval
-  PhidgetEncoder_setPositionChangeTrigger( _eh[i],(uint32_t) 0);
-  PhidgetEncoder_getPositionChangeTrigger( _eh[i], &tmp);
-  printf("PhidgetEncoder_getPositionChangeTrigger %u \n", tmp);
 
   return true;
 }
