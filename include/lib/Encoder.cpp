@@ -59,8 +59,11 @@ Encoder::Encoder(bool x) {
             // get info of encoder device
             getInfo(i);
 
-            // Set data interval to 8 ms
-            PhidgetEncoder_setDataInterval(_eh[i], 8);
+            // Set data interval for device to 8 ms
+            Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
+
+            // Set data interval for each channel to 8 ms
+            PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
 
             // Open the channel synchronously: waiting a maximum of 5 seconds.
             res = Phidget_openWaitForAttachment((PhidgetHandle) _eh[i], 5000);
