@@ -35,6 +35,7 @@ static void CCONV onPositionChangeHandler(PhidgetEncoderHandle ch,
                                           int indexTriggered) {
   int* channel = (int*) ctx;
   tmp_counts[*channel] = positionChange;
+  //printf("timeChange %f \n", timeChange);
 }
 //**************************************************************************
 // Encoder
@@ -87,12 +88,12 @@ Encoder::Encoder(bool x) {
       // Set data interval for each channel to 8 ms
       PhidgetEncoder_setDataInterval(_eh[i], (uint32_t) 8);
       PhidgetEncoder_getDataInterval( _eh[i], &tmp);
-      printf("PhidgetEncoder_getDataInterval %u %u \n", (uint32_t) 0, tmp);
+      printf("PhidgetEncoder_getDataInterval %u %u \n", (uint32_t) 8, tmp);
 
       // Set data interval for device to 8 ms
       Phidget_setDataInterval((PhidgetHandle) _eh[i], (uint32_t) 8);
       Phidget_getDataInterval((PhidgetHandle) _eh[i], &tmp);
-      printf("Phidget_getDataInterval %u %u \n", (uint32_t) 0, tmp);
+      printf("Phidget_getDataInterval %u %u \n", (uint32_t) 8, tmp);
 
       // The channel firing events every DataInterval
       PhidgetEncoder_setPositionChangeTrigger( _eh[i],(uint32_t) 0);
