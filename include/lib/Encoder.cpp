@@ -144,7 +144,8 @@ void Encoder::getCounts(long counts[]) const {
 //**************************************************************************
 void Encoder::readAnglesRad(float angle[]) const {
   for (int ch = 0; ch < 3; ++ch) {
-    angle[ch] = tmp_counts[ch] / MAXCOUNT * 2 * PI;
+    //angle[ch] = tmp_counts[ch] / MAXCOUNT * 2 * PI;
+    angle[ch] = _count[ch] / MAXCOUNT * 2 * PI;
   }
 }
 //**************************************************************************
@@ -232,11 +233,11 @@ bool Encoder::init(int i) {
     return false;
   }
 
-  res = PhidgetEncoder_setOnPositionChangeHandler(_eh[i], onPositionChangeHandler, &_channel[i]);
-  if (res != EPHIDGET_OK) {
-    fprintf(stderr, "failed to assign OnPositionChange handler\n");
-    return false;
-  }
+//  res = PhidgetEncoder_setOnPositionChangeHandler(_eh[i], onPositionChangeHandler, &_channel[i]);
+//  if (res != EPHIDGET_OK) {
+//    fprintf(stderr, "failed to assign OnPositionChange handler\n");
+//    return false;
+//  }
 
   return true;
 }
