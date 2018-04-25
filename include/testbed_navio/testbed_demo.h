@@ -362,9 +362,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
       ROS_INFO("Found encoders direction");
     }
     else {
-        data->enc_dir.assign = (0,1);
-        data->enc_dir.assign = (1,1);
-        data->enc_dir.assign = (2,1);
+        data->enc_dir.assign(0,1);
+        data->enc_dir.assign(1,1);
+        data->enc_dir.assign(2,1);
     }
 
 
