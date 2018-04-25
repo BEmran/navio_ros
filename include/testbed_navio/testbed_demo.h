@@ -46,7 +46,7 @@ struct dataStruct {
     bool is_sensors_ready;
 
     float du[4];                // output PWM signal
-    vector<double> enc_dir;
+    float enc_dir[3];
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -173,7 +173,9 @@ void *sensorsThread(void *data) {
 
     //Initialize encoders
     my_data->encoder = new Encoder(0);
-
+    my_data->enc_dir[0] = 1.0;
+    my_data->enc_dir[1] = 1.0;
+    my_data->enc_dir[2] = 1.0;
     // Announce sensors thread is ready
     my_data->is_sensors_ready = true;
 
@@ -297,7 +299,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
 
     // Kd angle gains
     if (n.getParam("testbed/control/angle/gains/kd", data->angConGain.kd))
-        ROS_INFO("Found  angle control kd gains");
+        ROS_INFO("Found angle control kd gains");
     else {
         ROS_INFO("Can't find angle control kd gains");
         data->angConGain.kd.assign(0,1.0);
@@ -352,22 +354,25 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_min[3] = du[0];
         data->du_max[3] = du[1];
     }
-    else {ROS_INFO("Found encoders direction");
+    else {
         data->du_min[3] = -0.1;
         data->du_max[3] = +0.1;
     }
 
     // Get encoderes direction --------------------------------------------------------------------
-    if (n.getParam("testbed/encoders_direction", data->enc_dir)){
+    std::vector<double> enc_dir;
+    if (n.getParam("testbed/encoders_direction", enc_dir)){
       ROS_INFO("Found encoders direction");
     }
     else {
         ROS_INFO("Can't find encoders direction");
-        data->enc_dir.assign(0,1.0);
-        data->enc_dir.assign(1,1.0);
-        data->enc_dir.assign(2,1.0);
+        enc_dir.assign(0,1.0);
+        enc_dir.assign(1,1.0);
+        enc_dir.assign(2,1.0);
     }
-
+    data->enc_dir[0] = enc_dir[0];
+    data->enc_dir[1] = enc_dir[1];
+    data->enc_dir[2] = enc_dir[2];
 
     // print result -------------------------------------------------------------------------------
     ROS_INFO("control kp gains are set to: kp[0] %f, kp[1] %f, kp[2] %f\n",
@@ -384,9 +389,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     ROS_INFO(" - Pitch  = [%+6.2f - %+6.2f] \n",data->du_min[2],data->du_max[2]);
     ROS_INFO(" - Yaw    = [%+6.2f - %+6.2f] \n",data->du_min[3],data->du_max[3]);
     ROS_INFO("Encoders direction:\n");
-    ROS_INFO(" - roll  = %+d\n", data->enc_dir[0]);
-    ROS_INFO(" - pitch = %+d\n", data->enc_dir[1]);
-    ROS_INFO(" - yaw   = %+d\n", data->enc_dir[2]);
+    ROS_INFO(" - roll  = %+f\n", data->enc_dir[0]);
+    ROS_INFO(" - pitch = %+f\n", data->enc_dir[1]);
+    ROS_INFO(" - yaw   = %+f\n", data->enc_dir[2]);
 }
 
 /**************************************************************************************************
