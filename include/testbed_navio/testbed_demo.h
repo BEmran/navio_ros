@@ -46,7 +46,7 @@ struct dataStruct {
     bool is_sensors_ready;
 
     float du[4];                // output PWM signal
-    int enc_dir[3];
+    std::vector<int> enc_dir;
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -358,24 +358,13 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
 
     // Get encoderes direction --------------------------------------------------------------------
-    std::vector<int> dir;
-    if (n.getParam("testbed/encoders_direction/roll", dir)){
-        data->enc_dir[0] = dir[0];
+    if (n.getParam("testbed/encoders_direction", data->enc_dir)){
+      ROS_INFO("Found encoders direction");
     }
     else {
-        data->enc_dir[0] = 1;
-    }
-    if (n.getParam("testbed/encoders_direction/pitch", dir)){
-        data->enc_dir[1] = dir[0];
-    }
-    else {
-        data->enc_dir[1] = 1;
-    }
-    if (n.getParam("testbed/encoders_direction/yaw", dir)){
-        data->enc_dir[2] = dir[0];
-    }
-    else {
-        data->enc_dir[2] = 1;
+        data->enc_dir.assign = (0,1);
+        data->enc_dir.assign = (1,1);
+        data->enc_dir.assign = (2,1);
     }
 
 
