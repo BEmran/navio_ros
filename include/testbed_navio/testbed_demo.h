@@ -23,10 +23,6 @@ Global variables
 #define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
 #define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
-#define _Encoder_Direction_R  -1   // ecnoder angle dirction for roll encoder
-#define _Encoder_Direction_P  +1   // ecnoder angle dirction for pitch encoder
-#define _Encoder_Direction_Y  -1   // ecnoder angle dirction for yaw encoder
-
 pthread_t _Thread_Sensors;
 pthread_t _Thread_RosNode;
 pthread_t _Thread_Control;
@@ -362,21 +358,21 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
 
     // Get encoderes direction --------------------------------------------------------------------
-    std::vector<double> enc_dir;
-    if (n.getParam("testbed/encoders_direction/roll", enc_dir)){
-        data->enc_dir[0] = enc_dir[0];
+    std::vector<double> dir;
+    if (n.getParam("testbed/encoders_direction/roll", dir)){
+        data->enc_dir[0] = dir[0];
     }
     else {
         data->enc_dir[0] = 1;
     }
-    if (n.getParam("testbed/encoders_direction/pitch", enc_dir)){
-        data->enc_dir[1] = enc_dir[0];
+    if (n.getParam("testbed/encoders_direction/pitch", dir)){
+        data->enc_dir[1] = dir[0];
     }
     else {
         data->enc_dir[1] = 1;
     }
-    if (n.getParam("testbed/encoders_direction/yaw", enc_dir)){
-        data->enc_dir[2] = enc_dir[0];
+    if (n.getParam("testbed/encoders_direction/yaw", dir)){
+        data->enc_dir[2] = dir[0];
     }
     else {
         data->enc_dir[2] = 1;
@@ -398,9 +394,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     ROS_INFO(" - Pitch  = [%+6.2f - %+6.2f] \n",data->du_min[2],data->du_max[2]);
     ROS_INFO(" - Yaw    = [%+6.2f - %+6.2f] \n",data->du_min[3],data->du_max[3]);
     ROS_INFO("Encoders direction:\n");
-    ROS_INFO(" - roll  = +d\n", data->enc_dir[0]);
-    ROS_INFO(" - pitch = +d\n", data->enc_dir[1]);
-    ROS_INFO(" - yaw   = +d\n", data->enc_dir[2]);
+    ROS_INFO(" - roll  = +%d\n", data->enc_dir[0]);
+    ROS_INFO(" - pitch = +%d\n", data->enc_dir[1]);
+    ROS_INFO(" - yaw   = +%d\n", data->enc_dir[2]);
 }
 
 /**************************************************************************************************
