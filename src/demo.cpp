@@ -22,9 +22,9 @@ int main(int argc, char** argv) {
     data.is_control_ready = false;
     data.is_rosnode_ready = false;
     data.is_sensors_ready = false;
-    data.enc_dir.assign(0,1);
-    data.enc_dir.assign(1,1);
-    data.enc_dir.assign(2,1);
+    data.enc_dir.push_back(1.0);
+    data.enc_dir.push_back(1.0);
+    data.enc_dir.push_back(1.0);
     TimeSampling st(_MAINFUN_FREQ);
     for (int i = 0; i < 25; ++i) {
         data.record[i] = 0.0;       // initialize record data with zeros

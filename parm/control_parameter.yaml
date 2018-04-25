@@ -2,13 +2,13 @@ testbed:
   control:
     angle:
       gains:
-        kp: [1.0,1.0,0.30]
-        ki: [0.8,0.8,0.50]
+        kp: [0.6,0.6,0.20]
+        ki: [0.3,0.3,0.20]
         kd: [0.3,0.3,0.75]
       type: 'lqi'
   motors:
     offset: [0.0,0.0,0.0,0.0]
-
+  encoders_direction: [-1.0, +1.0, -1.0]
 
 
 
