@@ -358,7 +358,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
 
     // Get encoderes direction --------------------------------------------------------------------
-    std::vector<double> dir;
+    std::vector<int> dir;
     if (n.getParam("testbed/encoders_direction/roll", dir)){
         data->enc_dir[0] = dir[0];
     }
@@ -394,9 +394,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     ROS_INFO(" - Pitch  = [%+6.2f - %+6.2f] \n",data->du_min[2],data->du_max[2]);
     ROS_INFO(" - Yaw    = [%+6.2f - %+6.2f] \n",data->du_min[3],data->du_max[3]);
     ROS_INFO("Encoders direction:\n");
-    ROS_INFO(" - roll  = +%d\n", data->enc_dir[0]);
-    ROS_INFO(" - pitch = +%d\n", data->enc_dir[1]);
-    ROS_INFO(" - yaw   = +%d\n", data->enc_dir[2]);
+    ROS_INFO(" - roll  = %+d\n", data->enc_dir[0]);
+    ROS_INFO(" - pitch = %+d\n", data->enc_dir[1]);
+    ROS_INFO(" - yaw   = %+d\n", data->enc_dir[2]);
 }
 
 /**************************************************************************************************
