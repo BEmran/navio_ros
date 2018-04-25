@@ -46,7 +46,7 @@ struct dataStruct {
     bool is_sensors_ready;
 
     float du[4];                // output PWM signal
-    float enc_dir[3];
+    int enc_dir[3];
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -173,9 +173,9 @@ void *sensorsThread(void *data) {
 
     //Initialize encoders
     my_data->encoder = new Encoder(0);
-    my_data->enc_dir[0] = 1.0;
-    my_data->enc_dir[1] = 1.0;
-    my_data->enc_dir[2] = 1.0;
+    my_data->enc_dir[0] = 1;
+    my_data->enc_dir[1] = 1;
+    my_data->enc_dir[2] = 1;
     // Announce sensors thread is ready
     my_data->is_sensors_ready = true;
 
@@ -366,9 +366,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     }
     else {
         ROS_INFO("Can't find encoders direction");
-        enc_dir.assign(0,1.0);
-        enc_dir.assign(1,1.0);
-        enc_dir.assign(2,1.0);
+        enc_dir.assign(0,1);
+        enc_dir.assign(1,1);
+        enc_dir.assign(2,1);
     }
     data->enc_dir[0] = enc_dir[0];
     data->enc_dir[1] = enc_dir[1];
@@ -389,9 +389,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     ROS_INFO(" - Pitch  = [%+6.2f - %+6.2f] \n",data->du_min[2],data->du_max[2]);
     ROS_INFO(" - Yaw    = [%+6.2f - %+6.2f] \n",data->du_min[3],data->du_max[3]);
     ROS_INFO("Encoders direction:\n");
-    ROS_INFO(" - roll  = %+f\n", data->enc_dir[0]);
-    ROS_INFO(" - pitch = %+f\n", data->enc_dir[1]);
-    ROS_INFO(" - yaw   = %+f\n", data->enc_dir[2]);
+    ROS_INFO(" - roll  = %+d\n", data->enc_dir[0]);
+    ROS_INFO(" - pitch = %+d\n", data->enc_dir[1]);
+    ROS_INFO(" - yaw   = %+d\n", data->enc_dir[2]);
 }
 
 /**************************************************************************************************
