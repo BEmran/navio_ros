@@ -46,7 +46,7 @@ struct dataStruct {
     bool is_sensors_ready;
 
     float du[4];                // output PWM signal
-    std::vector<int> enc_dir;
+    vector<int> enc_dir;
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -352,7 +352,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_min[3] = du[0];
         data->du_max[3] = du[1];
     }
-    else {
+    else {ROS_INFO("Found encoders direction");
         data->du_min[3] = -0.1;
         data->du_max[3] = +0.1;
     }
@@ -362,6 +362,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
       ROS_INFO("Found encoders direction");
     }
     else {
+        ROS_INFO("Can't find encoders direction");
         data->enc_dir.assign(0,1);
         data->enc_dir.assign(1,1);
         data->enc_dir.assign(2,1);
