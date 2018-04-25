@@ -6,18 +6,18 @@
 #ifndef TESTBED
 #define TESTBED
 
-/******************************************************************************
+/**************************************************************************************************
 Header files
-*******************************************************************************/
+**************************************************************************************************/
 #include <signal.h>                         // signal ctrl+c
 #include <stdio.h>                          // printf
 #include <lib/TimeSampling.h>               // time sampling library
 #include <testbed_navio/ros_node.h>         // ros node class
 #include <testbed_navio/navio_interface.h>  // navio interface pwm, sensors ...
 
-/******************************************************************************
+/**************************************************************************************************
 Global variables
-*******************************************************************************/
+**************************************************************************************************/
 #define _MAINFUN_FREQ   200   // Main thread frequency in Hz
 #define _SENSORS_FREQ   200   // Sensor thread frequency in Hz
 #define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
@@ -34,9 +34,9 @@ pthread_t _Thread_Control;
 bool _CloseRequested = false;
 using namespace std;
 
-/******************************************************************************
+/**************************************************************************************************
 Define structures
-*******************************************************************************/
+**************************************************************************************************/
 struct controlStruct {
     std::vector<double> kp;
     std::vector<double> ki;
@@ -50,6 +50,7 @@ struct dataStruct {
     bool is_sensors_ready;
 
     float du[4];                // output PWM signal
+    int enc_dir[3];
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -69,9 +70,9 @@ struct dataStruct {
     char** argv;
 };
 
-/******************************************************************************
+/**************************************************************************************************
 Functions prototype
-*******************************************************************************/
+**************************************************************************************************/
 void ctrlCHandler(int signal);
 void *sensorsThread(void *data);
 void *rosNodeThread(void *data);
@@ -80,9 +81,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data);
 void printRecord(FILE* file, float data[]);
 void control(dataStruct* data, float dt);
 
-/******************************************************************************
+/**************************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
-*******************************************************************************/
+**************************************************************************************************/
 
 void ctrlCHandler(int signal) {
     _CloseRequested = true;
@@ -153,7 +154,7 @@ void *controlThread(void *data) {
         }
     }
 
-    // Exit procedure ---------------------------------------------------------
+    // Exit procedure -----------------------------------------------------------------------------
     ctrlCHandler(0);
     printf("Exit control thread\n");
     pthread_exit(NULL);
@@ -189,9 +190,9 @@ void *sensorsThread(void *data) {
         my_data->sensors->update();         // update Sensor
         my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
-        my_data->enc_angle[0] = my_data->enc_angle[0] * _Encoder_Direction_R; // change angle direction
-        my_data->enc_angle[1] = my_data->enc_angle[1] * _Encoder_Direction_P; // change angle direction
-        my_data->enc_angle[2] = my_data->enc_angle[2] * _Encoder_Direction_Y; // change angle direction
+        my_data->enc_angle[0] = my_data->enc_angle[0] * my_data->enc_dir[0]; // change angle direction
+        my_data->enc_angle[1] = my_data->enc_angle[1] * my_data->enc_dir[1]; // change angle direction
+        my_data->enc_angle[2] = my_data->enc_angle[2] * my_data->enc_dir[2]; // change angle direction
 
         my_data->record[1] = my_data->sensors->imu.ax;
         my_data->record[2] = my_data->sensors->imu.ay;
@@ -223,12 +224,12 @@ void *sensorsThread(void *data) {
     pthread_exit(NULL);
 }
 
-/*******************************************************************************
+/**************************************************************************************************
  rosNodeThread: ROS Node thread
- ******************************************************************************/
+**************************************************************************************************/
 void *rosNodeThread(void *data) {
 
-    // Initialize ros node thread ----------------------------------------------
+    // Initialize ros node thread -----------------------------------------------------------------
     printf("Start ROS Node thread\n");
 
     // Initialize mapping data
@@ -247,7 +248,7 @@ void *rosNodeThread(void *data) {
     printf("ros is ready\n");
     my_data->is_rosnode_ready = true;
 
-    // Main loop --------------------------------------------------------------
+    // Main loop ----------------------------------------------------------------------------------
     while (ros::ok() && !_CloseRequested)
     {
         float gyro[3]= {my_data->sensors->imu.gx,my_data->sensors->imu.gy,my_data->sensors->imu.gz};
@@ -266,18 +267,18 @@ void *rosNodeThread(void *data) {
         loop_rate.sleep();
     }
 
-    // Exit procedure ---------------------------------------------------------
+    // Exit procedure -----------------------------------------------------------------------------
     ctrlCHandler(0);
     printf("Exit ROS Node thread\n");
     pthread_exit(NULL);
 }
 
-/******************************************************************************
+/**************************************************************************************************
 initializeParams: initialize parameter using rosparm package
-******************************************************************************/
+**************************************************************************************************/
 void initializeParams(ros::NodeHandle& n, dataStruct* data){
 
-    // Get Control Parameter --------------------------------------------------
+    // Get Control Parameter ----------------------------------------------------------------------
     // Kp angle gains
     if (n.getParam("testbed/control/angle/gains/kp", data->angConGain.kp))
         ROS_INFO("Found angle control kp gains");
@@ -325,7 +326,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->pwm_offset[3] = 0.0;
     }
 
-    // Get du max min values -----------------------------------------------------
+    // Get du max min values ----------------------------------------------------------------------
     std::vector<double> du;
     if (n.getParam("testbed/du_command/thrust", du)){
         data->du_min[0] = du[0];
@@ -360,7 +361,29 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->du_max[3] = +0.1;
     }
 
-    // print result -----------------------------------------------------------
+    // Get encoderes direction --------------------------------------------------------------------
+    std::vector<double> enc_dir;
+    if (n.getParam("testbed/encoders_direction/roll", enc_dir)){
+        data->enc_dir[0] = enc_dir[0];
+    }
+    else {
+        data->enc_dir[0] = 1;
+    }
+    if (n.getParam("testbed/encoders_direction/pitch", enc_dir)){
+        data->enc_dir[1] = enc_dir[0];
+    }
+    else {
+        data->enc_dir[1] = 1;
+    }
+    if (n.getParam("testbed/encoders_direction/yaw", enc_dir)){
+        data->enc_dir[2] = enc_dir[0];
+    }
+    else {
+        data->enc_dir[2] = 1;
+    }
+
+
+    // print result -------------------------------------------------------------------------------
     ROS_INFO("control kp gains are set to: kp[0] %f, kp[1] %f, kp[2] %f\n",
              data->angConGain.kp[0],data->angConGain.kp[1],data->angConGain.kp[2]);
     ROS_INFO("Control ki gains are set to: ki[0] %f, ki[1] %f, ki[2] %f\n",
@@ -374,7 +397,10 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     ROS_INFO(" - Roll   = [%+6.2f - %+6.2f] \n",data->du_min[1],data->du_max[1]);
     ROS_INFO(" - Pitch  = [%+6.2f - %+6.2f] \n",data->du_min[2],data->du_max[2]);
     ROS_INFO(" - Yaw    = [%+6.2f - %+6.2f] \n",data->du_min[3],data->du_max[3]);
-
+    ROS_INFO("Encoders direction:\n");
+    ROS_INFO(" - roll  = +d\n", data->enc_dir[0]);
+    ROS_INFO(" - pitch = +d\n", data->enc_dir[1]);
+    ROS_INFO(" - yaw   = +d\n", data->enc_dir[2]);
 }
 
 /**************************************************************************************************
