@@ -49,6 +49,6 @@ add_executable(demo src/demo.cpp)
 target_link_libraries(demo ${catkin_LIBRARIES} ${PROJECT_NAME}
 -lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
 
-add_executable(tracking src/tracking.cpp)
-target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME}
+add_executable(regulator src/regulator.cpp)
+target_link_libraries(regulator ${catkin_LIBRARIES} ${PROJECT_NAME}
 -lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
