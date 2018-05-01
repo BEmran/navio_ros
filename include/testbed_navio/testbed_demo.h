@@ -140,11 +140,11 @@ void *controlThread(void *data) {
         my_data->record[19] = my_data->du[3];
 
         // Record data in a file
-        printRecord(my_data->file, my_data->record);
+        //printRecord(my_data->file, my_data->record);
 
-        // Display info for user every 2 second
+        // Display info for user every 5 second
         dtsumm += dt;
-        if (dtsumm > 2.0) {
+        if (dtsumm > 5.0) {
             dtsumm = 0;
             printf("Control thread: running fine with %4d Hz\n", int(1 / dt));
         }
@@ -208,9 +208,12 @@ void *sensorsThread(void *data) {
         my_data->record[14] = my_data->rpy[1];
         my_data->record[15] = my_data->rpy[2];
 
-        // Display info for user every 2 second
+        // Record data in a file
+        printRecord(my_data->file, my_data->record);
+
+        // Display info for user every 5 second
         dtsumm += dt;
-        if (dtsumm > 2) {
+        if (dtsumm > 5) {
             dtsumm = 0;
             printf("Sensors thread: running fine with %4d Hz\n", int(1 / dt));
         }
