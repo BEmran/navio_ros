@@ -125,6 +125,18 @@ void Encoder::setChannel(int i) {
 // updateCounts
 //**************************************************************************
 void Encoder::updateCounts() {
+  gettimeofday(&_tval, NULL);
+  static long time = 1000000L * _tval.tv_sec + _tval.tv_usec;
+  static int count = 0;
+  count++;
+  if (count >99) {
+    count = 0;
+    _ptime = 1000000L * _tval.tv_sec + _tval.tv_usec;
+    _ptime = _ptime - time;
+    time = _ptime;
+    printf("count %d time = %dl", count, _ptime);
+
+  }
   for (int ch = 0; ch < 3; ++ch) {
     PhidgetEncoder_getPosition(_eh[ch], &_count[ch]);
     PhidgetEncoder_getIndexPosition(_eh[ch], &_index[ch]);

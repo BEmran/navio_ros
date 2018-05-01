@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <phidget22.h>
 #include <unistd.h>
+#include <sys/time.h>   // gettimeofday
 
 static void CCONV onAttachHandler(PhidgetHandle h, void *ctx);
 static void CCONV onDetachHandler(PhidgetHandle h, void *ctx);
@@ -51,6 +52,8 @@ private:
     int64_t _count[3];
     int64_t _index[3];
     PhidgetEncoderHandle _eh[3];
+    long _ptime;
+    struct timeval _tval;
 };
 
 #endif /* ENCODER_H */
