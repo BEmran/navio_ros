@@ -24,7 +24,7 @@ Header files
 #include <string>       // std::string, std::stof
 
 #include "navio_interface.h"    // Navio io interfaces
-#include "lib/SamplingTime.h"   // Sampling time Class
+#include "lib/TimeSampling.h"   // Sampling time Class
 #include "lib/DynSys.h"         // Dyanmic system
 #include "testbed_navio/ros_node_basic.h"   // ROS node
 
