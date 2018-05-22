@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
 
     // Start threads ----------------------------------------------------------
     pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
-    pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
+     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
     pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
 
     // Create new record file -------------------------------------------------
