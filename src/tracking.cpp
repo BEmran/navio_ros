@@ -131,35 +131,36 @@ void control(dataStruct* data, float dt){
 //    }
 //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
 //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
-
+  printf("control\n");
   Matrix3f Rd(Matrix3f::Identity());
-  Matrix3f Wd(Matrix3f::Zero());
-  Matrix3f er(Matrix3f::Zero());
-  Matrix3f Wd_dot(Matrix3f::Zero());
+  Vector3f Wd; Wd.setZero();
+  Vector3f er;
+  Vector3f Wd_dot; Wd_dot.setZero();
 
   float kr = 1, kw = 1;
   float Jxy = 0.01, Jz = 0.1;
-  Matrix3f J(3,3);
+  Matrix3f J;
   J <<  Jxy, 0, 0,
         0, Jxy, 0,
         0, 0, Jz;
   Matrix3f R;
-  R = AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
-    * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
-    * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
-  Matrix3f W;// = MatrixXd::Zeros(3,1); //data->W[0], data->W[0], data->W[0];
+  R =   AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
+      * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
+      * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
+  Vector3f W;
   Matrix3f Rt = R.transpose();
   Matrix3f Rdt = R.transpose();
 
   Matrix3f tmper = 0.5 * (Rdt * R - Rt * Rd);
   er << tmper(2,1), tmper(0,2), tmper(1,0);
-  Matrix3f A = Rt * Rd * Wd;
-  Matrix3f ew = W - A;
-  Matrix3f tmpA(Matrix3f::Zero());
-  tmpA <<  0,     -A(0,2), A(0,1),
-           A(0,2), 0,     -A(0,0),
-          -A(0,2), A(0,0), 0;
-  MatrixXf M = - kr * er - kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
+  Vector3f A = Rt * Rd * Wd;
+  Vector3f ew = W - A;
+  Matrix3f tmpA;
+  tmpA <<  0,    -A(2), A(1),
+           A(2), 0,    -A(0),
+          -A(2), A(0),  0;
+  Vector3f M = - kr * er - kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
+
   std::cout << "Rd = \n" << Rd << std::endl;
   std::cout << "Wd = \n" << Wd << std::endl;
   std::cout << "J = \n" << J << std::endl;
@@ -168,4 +169,7 @@ void control(dataStruct* data, float dt){
   std::cout << "R = \n" << R << std::endl;
   std::cout << "Rt = \n" << Rt << std::endl;
   std::cout << "M = \n" << M << std::endl;
+  std::cout << "tmpA = \n" << tmpA << std::endl;
+  std::cout << "A = \n" << A << std::endl;
+
 }

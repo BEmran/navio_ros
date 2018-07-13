@@ -21,7 +21,7 @@ Global variables
 #define _MAINFUN_FREQ   200   // Main thread frequency in Hz
 #define _SENSORS_FREQ   200   // Sensor thread frequency in Hz
 #define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
-#define _CONTROL_FREQ   1   // Control thread frequency in Hz
+#define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
 pthread_t _Thread_Sensors;
 pthread_t _Thread_RosNode;
