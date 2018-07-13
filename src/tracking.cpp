@@ -4,6 +4,11 @@
  * Created on March 14, 2018
  */
 #include "testbed_navio/testbed_demo.h"
+#include <eigen3/Eigen/Core>
+//#include <eigen3/Eigen/Eigen>
+#include <eigen3/Eigen/Geometry>
+
+using namespace Eigen;
 /******************************************************************************
 main: Run main function
 ******************************************************************************/
@@ -100,31 +105,67 @@ control: Perfourm control loop
 ******************************************************************************************/
 void control(dataStruct* data, float dt){
 
-    static float ei[3] = {0.0, 0.0, 0.0};
+//    static float ei[3] = {0.0, 0.0, 0.0};
 
-    float e[3];
-    float cmd_max[3] = {0.2, 0.2, 0.5};
-    float cmd_adj[3];
-    float ang[3] = {data->enc_angle[0], data->enc_angle[1],data->enc_angle[2]};
-    float w[3] = {0.0, 0.0, 0.0};
+//    float e[3];
+//    float cmd_max[3] = {0.2, 0.2, 0.5};
+//    float cmd_adj[3];
+//    float ang[3] = {data->enc_angle[0], data->enc_angle[1],data->enc_angle[2]};
+//    float w[3] = {0.0, 0.0, 0.0};
 
-    data->du[0] = 2.0;
-    // LQR control
-    for (int i = 0; i < 3; i++)
-    {
-        // adjust cmd
-        cmd_adj[i] = sat(data->rosnode->_cmd_ang[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
+//    data->du[0] = 2.0;
+//    // LQR control
+//    for (int i = 0; i < 3; i++)
+//    {
+//        // adjust cmd
+//        cmd_adj[i] = sat(data->rosnode->_cmd_ang[i], ang[i] + cmd_max[i], ang[i] - cmd_max[i]);
 
-        // traking error
-        e[i] = cmd_adj[i] - ang[i];
+//        // traking error
+//        e[i] = cmd_adj[i] - ang[i];
 
-        // control signal
-        data->du[i+1] = e[i] * data->angConGain.kp[i] - w[i] * data->angConGain.kd[i] + ei[i] * data->angConGain.ki[i];
+//        // control signal
+//        data->du[i+1] = e[i] * data->angConGain.kp[i] - w[i] * data->angConGain.kd[i] + ei[i] * data->angConGain.ki[i];
 
-        // integration
-        ei[i] += e[i] * dt;
-    }
-    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
-           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
+//        // integration
+//        ei[i] += e[i] * dt;
+//    }
+//    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
+//           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
+
+  Matrix3f Rd(Matrix3f::Identity());
+  Matrix3f Wd(Matrix3f::Zero());
+  Matrix3f er(Matrix3f::Zero());
+  Matrix3f Wd_dot(Matrix3f::Zero());
+
+  float kr = 1, kw = 1;
+  float Jxy = 0.01, Jz = 0.1;
+  Matrix3f J(3,3);
+  J <<  Jxy, 0, 0,
+        0, Jxy, 0,
+        0, 0, Jz;
+  Matrix3f R;
+  R = AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
+    * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
+    * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
+  Matrix3f W;// = MatrixXd::Zeros(3,1); //data->W[0], data->W[0], data->W[0];
+  Matrix3f Rt = R.transpose();
+  Matrix3f Rdt = R.transpose();
+
+  Matrix3f tmper = 0.5 * (Rdt * R - Rt * Rd);
+  er << tmper(2,1), tmper(0,2), tmper(1,0);
+  Matrix3f A = Rt * Rd * Wd;
+  Matrix3f ew = W - A;
+  Matrix3f tmpA(Matrix3f::Zero());
+  tmpA <<  0,     -A(0,2), A(0,1),
+           A(0,2), 0,     -A(0,0),
+          -A(0,2), A(0,0), 0;
+  MatrixXf M = - kr * er - kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
+  std::cout << "Rd = \n" << Rd << std::endl;
+  std::cout << "Wd = \n" << Wd << std::endl;
+  std::cout << "J = \n" << J << std::endl;
+  std::cout << "tmper = \n" << tmper << std::endl;
+  std::cout << "er = \n" << er << std::endl;
+  std::cout << "R = \n" << R << std::endl;
+  std::cout << "Rt = \n" << Rt << std::endl;
+  std::cout << "M = \n" << M << std::endl;
 }
-

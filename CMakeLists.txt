@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
-## Declare msg to be generated: 
+## Declare msg to be generated:
 #generate_messages(
 #  DEPENDENCIES
 #  std_msgs
@@ -52,3 +52,27 @@ target_link_libraries(demo ${catkin_LIBRARIES} ${PROJECT_NAME}
 add_executable(regulator src/regulator.cpp)
 target_link_libraries(regulator ${catkin_LIBRARIES} ${PROJECT_NAME}
 -lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
+
+add_executable(tracking src/tracking.cpp)
+target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME}
+-lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
+
+#add_executable(testbed_basic_tracking src/testbed_basic_tracking.cpp)
+#target_link_libraries(testbed_basic_tracking ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(testbed_basic_adaptive src/testbed_basic_adaptive.cpp)
+#target_link_libraries(testbed_basic_adaptive ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(testbed_full src/testbed_full.cpp)
+#target_link_libraries(testbed_full ${catkin_LIBRARIES} ${PROJECT_NAME})
+##add_dependencies(basic ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
+#add_executable(control_gyro src/control_gyro.cpp)
+#target_link_libraries(control_gyro  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(control_tracking src/control_tracking.cpp)
+#target_link_libraries(control_tracking  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
+#add_executable(demo src/demo.cpp)
+#target_link_libraries(demo  ${catkin_LIBRARIES} ${PROJECT_NAME})
+
