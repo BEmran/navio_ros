@@ -103,4 +103,3 @@ void control(dataStruct* data, float dt){
         data->du[i] = data->rosnode->_cmd_du[i];
     }
 }
-
