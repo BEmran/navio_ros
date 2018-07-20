@@ -135,7 +135,6 @@ void control(dataStruct* data, float dt){
   //    }
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
-  printf("control\n");
   Matrix3f Rd(Matrix3f::Identity());
   Vector3f Wd; Wd.setZero();
   Vector3f er;
@@ -170,10 +169,11 @@ void control(dataStruct* data, float dt){
   ii++;
   if (ii = 200) {
     ii = 0;
-    printf("Wz = %5.2f Rz = %5.2f erz = %5.2f ewz = %5.2f", W[2], R(2,2), er[2], ew[2]);
+    printf("Wz = %5.2f Rz = %5.2f erz = %5.2f ewz = %5.2f M = %5.2f", W[2], R(2,2), er[2], ew[2], M[2]);
     //std::cout << "W = \n" << W << std::endl;
     //std::cout << "er = \n" << er << std::endl;
     //std::cout << "R = \n" << R << std::endl;
   }
+  data->du[0] = 2.0;
   data->du[2] = M[2];
 }
