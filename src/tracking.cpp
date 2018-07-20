@@ -140,8 +140,8 @@ void control(dataStruct* data, float dt){
   Vector3f er;
   Vector3f Wd_dot; Wd_dot.setZero();
 
-  float kr = 0.2, kw = 0.1;
-  float Jxy = 0.01, Jz = 0.1;
+  float kr = 0.4, kw = 0.3;
+  float Jxy = 0.03, Jz = 1;
   Matrix3f J;
   J <<  Jxy, 0, 0,
       0, Jxy, 0,
@@ -169,11 +169,11 @@ void control(dataStruct* data, float dt){
   ii++;
   if (ii = 200) {
     ii = 0;
-    printf("Wz = %5.2f Rz = %5.2f erz = %5.2f ewz = %5.2f M = %5.2f", W[2], R(2,2), er[2], ew[2], M[2]);
+    printf("Wz = %5.2f Rz = %5.2f erz = %5.2f ewz = %5.2f M = %5.2f\n", W[2], R(2,2), er[2], ew[2], M[2]);
     //std::cout << "W = \n" << W << std::endl;
     //std::cout << "er = \n" << er << std::endl;
     //std::cout << "R = \n" << R << std::endl;
   }
-  data->du[0] = 2.0;
+  data->du[0] = 1.0;
   data->du[2] = M[2];
 }
