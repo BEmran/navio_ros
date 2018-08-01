@@ -183,6 +183,8 @@ void *sensorsThread(void *data) {
     float tmpz = my_data->sensors->init_Orient[2];
     my_data->enc_ang_bias[0] = atan2(tmpy , tmpz);
     my_data->enc_ang_bias[1] = atan2(- tmpx , sqrt(tmpy * tmpy + tmpz * tmpz));
+    my_data->enc_ang_bias[2] = 0.0;
+    printf("Correct in roll= %5.5f\t  pitch= %5.5f\n", my_data->enc_ang_bias[0], my_data->enc_ang_bias[1]);
     //Initialize encoder
     my_data->encoder = new Encoder(0);
     my_data->enc_dir[0] = 1;
