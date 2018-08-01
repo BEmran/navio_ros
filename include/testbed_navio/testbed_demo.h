@@ -480,7 +480,6 @@ void wdotDyn(float* y, float* x, float* xdot, float* u, float t)
     y[1] = x[1] + wf[1] * u[1];
     y[2] = x[2] + wf[2] * u[2];
 }
-
 #endif // TESTBED
 
 

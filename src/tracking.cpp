@@ -8,6 +8,7 @@
 //#include <eigen3/Eigen/Eigen>
 #include <eigen3/Eigen/Geometry>
 
+void WdDyn(float* y, float* x, float* xdot, float* u, float t);
 using namespace Eigen;
 /******************************************************************************
 main: Run main function
@@ -135,13 +136,10 @@ void control(dataStruct* data, float dt){
   //    }
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
-  Quaternionf qd;
-  qd.x() = data->rosnode->_cmd_quat.x;
-  qd.y() = data->rosnode->_cmd_quat.x;
-  qd.z() = data->rosnode->_cmd_quat.x;
-  qd.w() = data->rosnode->_cmd_quat.x;
-  //Matrix3f Rd = qd.normalized().toRotationMatrix();
-  Matrix3f Rd(Matrix3f::Identity());
+
+
+  /* T. Lee Method
+   * Matrix3f Rd(Matrix3f::Identity());
   Vector3f Wd; Wd.setZero();
   Vector3f er;
   Vector3f Wd_dot; Wd_dot.setZero();
@@ -172,6 +170,64 @@ void control(dataStruct* data, float dt){
           A(2),     0, -A(0),
          -A(2),  A(0),     0;
   Vector3f M = - Kr * er - Kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
+  */
+  static const float* wd;
+  static DynSys wdSys = DynSys(3, *WdDyn);
+  //static DynSys rdSys = DynSys(3, *RdDyn);
+  wd = wdSys.getY();
+  //rd = rdSys.getY();
+
+  Quaternionf qd;
+  qd.x() = data->rosnode->_cmd_quat.x;
+  qd.y() = data->rosnode->_cmd_quat.x;
+  qd.z() = data->rosnode->_cmd_quat.x;
+  qd.w() = data->rosnode->_cmd_quat.x;
+  //Matrix3f Rd = qd.normalized().toRotationMatrix();
+
+  Matrix3f Rd(Matrix3f::Identity());
+  Matrix3f Rd_dot; Rd_dot.setZero();
+  float Jxy = 0.01, Jz = 0.1;
+  Matrix3f J;
+  J <<  Jxy,   0,  0,
+      0, Jxy,  0,
+      0,   0, Jz;
+  Matrix3f Kr, Kw;
+  Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
+  Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
+  ////////////////////
+  Matrix3f R;
+  R =   AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
+      * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
+      * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
+  Vector3f W;
+  W << data->w[0], data->w[1], data->w[2];
+  ////////////////////
+  Matrix3f tmp_er = Matrix3f::Identity() - Rd.transpose()*R;
+  Vector3f er;
+  er <<  tmp_er(2,1), tmp_er(0,2), tmp_er(1,0);
+  Vector3f temp_qr = - Kr * er;
+  Matrix3f qr;
+  qr <<         0, -temp_qr(2),  temp_qr(1),
+       temp_qr(2),           0, -temp_qr(0),
+      -temp_qr(2),  temp_qr(0),           0;
+  Matrix3f temp_wc = (R.transpose()*Rd)*(-Rd_dot.transpose()*R + qr);
+  Vector3f Wc;
+  Wc <<  temp_wc(2,1), temp_wc(0,2), temp_wc(1,0);
+  ////////////////////
+  float wc[3] = {Wc(0),Wc(1),Wc(3)};
+  wdSys.update(wc,0,0.005);
+  Vector3f Wd;
+  Wd << wd[0], wd[1], wd[2];
+  Vector3f Wd_dot;
+  float wf = 100;
+  Wd_dot << wf * ( -wd[0] + wc[0]),
+            wf * ( -wd[1] + wc[1]),
+            wf * ( -wd[2] + wc[2]);
+  ////////////////////
+  Matrix3f th(Matrix3f::Identity());
+  Vector3f ew = W - Wd;
+  Vector3f qw = Wd_dot + Kw * ew;
+  Vector3f M = th.inverse() * qw;
 
   static int ii = 0;
   ii++;
@@ -183,4 +239,42 @@ void control(dataStruct* data, float dt){
   data->du[1] = M[0];
   data->du[2] = M[1];
   data->du[3] = M[2];
+}
+
+/*****************************************************************************************
+ RdDyn: Dynamic system: filter
+ *****************************************************************************************/
+void RdDyn(float* y, float* x, float* xdot, float* u, float t)
+{
+  float wf = 100;
+
+  xdot[0] = wf * ( -x[0] + u[0]);
+  xdot[1] = wf * ( -x[1] + u[1]);
+  xdot[2] = wf * ( -x[2] + u[2]);
+  xdot[3] = 0;
+  xdot[4] = 0;
+  xdot[5] = 0;
+
+  y[0] = x[0];
+  y[1] = x[1];
+  y[2] = x[2];
+  y[3] = xdot[0];
+  y[4] = xdot[1];
+  y[5] = xdot[2];
+}
+
+/*****************************************************************************************
+ WdDyn: Dynamic system: filter
+ *****************************************************************************************/
+void WdDyn(float* y, float* x, float* xdot, float* u, float t)
+{
+    float wf = 100;
+
+    xdot[0] = wf * ( -x[0] + u[0]);
+    xdot[1] = wf * ( -x[1] + u[1]);
+    xdot[2] = wf * ( -x[2] + u[2]);
+
+    y[0] = x[0];
+    y[1] = x[1];
+    y[2] = x[2];
 }
