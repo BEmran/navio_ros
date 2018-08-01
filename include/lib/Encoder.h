@@ -44,12 +44,15 @@ public:
     void setChannel(int i);
     void setCount(const int ch, const long int count);
     void setCounts(const long int count[]);
+    void enablResetIndex( bool enable[3]);
+
 
 private:
     int _serial;
     int _channel[3];
     int64_t _count[3];
     int64_t _index[3];
+    bool _reset_index[3];
     PhidgetEncoderHandle _eh[3];
 };
 

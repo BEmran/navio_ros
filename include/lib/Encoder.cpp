@@ -54,6 +54,9 @@ Encoder::Encoder(bool x) {
   _index[0] = 0;
   _index[1] = 1;
   _index[2] = 2;
+  _reset_index[0] = 0;
+  _reset_index[1] = 0;
+  _reset_index[2] = 0;
   _serial = 0;
   _is_enbaled[0] = false;
   _is_enbaled[1] = false;
@@ -122,13 +125,22 @@ void Encoder::setChannel(int i) {
   Phidget_setChannel((PhidgetHandle) _eh[i], _channel[i]);
 }
 //**************************************************************************
+// enablResetIndex
+//**************************************************************************
+void Encoder::enablResetIndex( bool enable[3]) {
+  for (int ch = 0; ch < 3; ++ch) {
+    _reset_index[ch] = enable[ch];
+  }
+}
+//**************************************************************************
 // updateCounts
 //**************************************************************************
 void Encoder::updateCounts() {
   for (int ch = 0; ch < 3; ++ch) {
     PhidgetEncoder_getPosition(_eh[ch], &_count[ch]);
     PhidgetEncoder_getIndexPosition(_eh[ch], &_index[ch]);
-    _count[ch] = _count[ch] - _index[ch];
+    if (_reset_index[ch])
+      _count[ch] = _count[ch] - _index[ch];
   }
 }
 //**************************************************************************
