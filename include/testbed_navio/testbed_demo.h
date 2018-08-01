@@ -50,6 +50,7 @@ struct dataStruct {
 
     float du[4];                // output PWM signal
     int enc_dir[3];
+    float enc_ang_bias[3];
     float pwm_offset[4];
     float record[25];           // stored data to print each samplig time
     float enc_angle[3];         // store encoder angle in rad
@@ -176,8 +177,13 @@ void *sensorsThread(void *data) {
 
     // Initialize IMU
     my_data->sensors = new Sensors("mpu", false);
-
-    //Initialize encoders
+    my_data->sensors->getInitialOrientation();
+    float tmpx = my_data->sensors->init_Orient[0];
+    float tmpy = my_data->sensors->init_Orient[1];
+    float tmpz = my_data->sensors->init_Orient[2];
+    my_data->enc_ang_bias[0] = atan2(tmpy , tmpy);
+    my_data->enc_ang_bias[1] = atan2(- tmpx , sqrt(tmpy * tmpy + tmpz * tmpz));
+    //Initialize encoder
     my_data->encoder = new Encoder(0);
     my_data->enc_dir[0] = 1;
     my_data->enc_dir[1] = 1;
@@ -194,9 +200,9 @@ void *sensorsThread(void *data) {
         my_data->sensors->update();         // update Sensor
         my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
-        my_data->enc_angle[0] = my_data->enc_angle[0] * my_data->enc_dir[0]; // change angle direction
-        my_data->enc_angle[1] = my_data->enc_angle[1] * my_data->enc_dir[1]; // change angle direction
-        my_data->enc_angle[2] = my_data->enc_angle[2] * my_data->enc_dir[2]; // change angle direction       
+        my_data->enc_angle[0] = my_data->enc_angle[0] * my_data->enc_dir[0] - my_data->enc_ang_bias[0]; // change angle direction
+        my_data->enc_angle[1] = my_data->enc_angle[1] * my_data->enc_dir[1] - my_data->enc_ang_bias[1]; // change angle direction
+        my_data->enc_angle[2] = my_data->enc_angle[2] * my_data->enc_dir[2] - my_data->enc_ang_bias[2]; // change angle direction
 
         my_data->w = my_data->wSys.getY();
         my_data->wSys.update(my_data->enc_angle,0,0.005);

@@ -26,11 +26,13 @@ public:
     bool isISEnabled;
     struct imu_struct imu;
     struct imu_struct bias;
+    float init_Orient[3];
 
     Sensors ();
     Sensors (std::string sensor_name, bool debug);
     void update();
     void calibrateGyro();
+    void getInitialOrientation();
 
 private:
     bool is_debug;

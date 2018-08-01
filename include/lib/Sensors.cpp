@@ -91,11 +91,11 @@ void Sensors::calibrateGyro()
         imu.gy *= 180 / PI;
         imu.gz *= 180 / PI;
 
-        offset[0] += imu.gx*0.0175;
-        offset[1] += imu.gy*0.0175;
-        offset[2] += imu.gz*0.0175;
+        offset[0] += imu.gx * 0.0175;
+        offset[1] += imu.gy * 0.0175;
+        offset[2] += imu.gz * 0.0175;
 
-        usleep(10000);
+        usleep(5000);
     }
     offset[0]/=500.0;
     offset[1]/=500.0;
@@ -106,6 +106,36 @@ void Sensors::calibrateGyro()
     bias.gx = offset[0];
     bias.gx = offset[1];
     bias.gx = offset[2];
+}
+//**************************************************************************
+// Get Initial Orientation: find the initial orientation
+//**************************************************************************
+void Sensors::getInitialOrientation()
+{
+    //---------------------- Calculate the offset -----------------------------
+    float avg[3] = {0.0, 0.0, 0.0};
+
+    //-------------------------------------------------------------------------
+    printf("Beginning Orientation calibration...\n");
+    for(int i = 0; i<500; i++)
+    {
+        update();
+
+        avg[0] += imu.ax;
+        avg[1] += imu.gy;
+        avg[2] += imu.gz;
+
+        usleep(5000);
+    }
+    avg[0]/=500.0;
+    avg[1]/=500.0;
+    avg[2]/=500.0;
+
+    printf("Orientation Offsets are: %+10.5f %+10.5f %+10.5f\n", avg[0], avg[1], avg[2]);
+
+    init_Orient[0] = avg[0];
+    init_Orient[1] = avg[1];
+    init_Orient[2] = avg[2];
 }
 //**************************************************************************
 // Store row measurements
