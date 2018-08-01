@@ -38,6 +38,8 @@ struct controlStruct {
     std::vector<double> kp;
     std::vector<double> ki;
     std::vector<double> kd;
+    std::vector<double> kr;
+    std::vector<double> kw;
 };
 
 struct dataStruct {
@@ -301,7 +303,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     if (n.getParam("testbed/control/angle/gains/ki", data->angConGain.ki))
         ROS_INFO("Found angle control ki gains");
     else {
-        ROS_INFO("Can't find angle control kp gains");
+        ROS_INFO("Can't find angle control ki gains");
         data->angConGain.ki.assign(0,1.0);
         data->angConGain.ki.assign(1,1.0);
         data->angConGain.ki.assign(2,2.0);
@@ -315,6 +317,26 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
         data->angConGain.kd.assign(0,1.0);
         data->angConGain.kd.assign(1,1.0);
         data->angConGain.kd.assign(2,2.0);
+    }
+
+    // Kr gains
+    if (n.getParam("testbed/control/angle/gains/kr", data->angConGain.kr))
+        ROS_INFO("Found angle control kr gains");
+    else {
+        ROS_INFO("Can't find angle control kr gains");
+        data->angConGain.kr.assign(0,0.2);
+        data->angConGain.kr.assign(1,0.2);
+        data->angConGain.kr.assign(2,0.2);
+
+    }
+    // Kw gains
+    if (n.getParam("testbed/control/angle/gains/kw", data->angConGain.kw))
+        ROS_INFO("Found angle control kw gains");
+    else {
+        ROS_INFO("Can't find angle control kw gains");
+        data->angConGain.kw.assign(0,0.1);
+        data->angConGain.kw.assign(1,0.1);
+        data->angConGain.kw.assign(2,0.1);
     }
 
     // Get Motors Offsets -------------------------------------------------------------------------

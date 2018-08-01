@@ -135,17 +135,25 @@ void control(dataStruct* data, float dt){
   //    }
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
+  Quaternionf qd;
+  qd.x() = data->rosnode->_cmd_quat.x;
+  qd.y() = data->rosnode->_cmd_quat.x;
+  qd.z() = data->rosnode->_cmd_quat.x;
+  qd.w() = data->rosnode->_cmd_quat.x;
+  //Matrix3f Rd = qd.normalized().toRotationMatrix();
   Matrix3f Rd(Matrix3f::Identity());
   Vector3f Wd; Wd.setZero();
   Vector3f er;
   Vector3f Wd_dot; Wd_dot.setZero();
 
-  float kr = 0.4, kw = 0.3;
-  float Jxy = 0.03, Jz = 1;
+  float Jxy = 0.01, Jz = 0.1;
   Matrix3f J;
-  J <<  Jxy, 0, 0,
-      0, Jxy, 0,
-      0, 0, Jz;
+  J <<  Jxy,   0,  0,
+          0, Jxy,  0,
+          0,   0, Jz;
+  Matrix3f Kr, Kw;
+  Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
+  Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
   Matrix3f R;
   R =   AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
       * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
@@ -160,20 +168,19 @@ void control(dataStruct* data, float dt){
   Vector3f A = Rt * Rd * Wd;
   Vector3f ew = W - A;
   Matrix3f tmpA;
-  tmpA <<  0,    -A(2), A(1),
-      A(2), 0,    -A(0),
-      -A(2), A(0),  0;
-  Vector3f M = - kr * er - kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
+  tmpA <<    0, -A(2),  A(1),
+          A(2),     0, -A(0),
+         -A(2),  A(0),     0;
+  Vector3f M = - Kr * er - Kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
 
   static int ii = 0;
   ii++;
   if (ii = 200) {
     ii = 0;
-    printf("Wz = %5.2f Rz = %5.2f erz = %5.2f ewz = %5.2f M = %5.2f\n", W[2], R(2,2), er[2], ew[2], M[2]);
-    //std::cout << "W = \n" << W << std::endl;
-    //std::cout << "er = \n" << er << std::endl;
-    //std::cout << "R = \n" << R << std::endl;
+    printf("e[0]= %+5.2f\t e[1]= %+5.2f\t e[2]= %+5.2f\n", er[0],er[1],er[2]);
   }
-  data->du[0] = 1.0;
-  data->du[2] = M[2];
+  data->du[0] = 2.0;
+  data->du[1] = M[0];
+  data->du[2] = M[1];
+  data->du[3] = M[2];
 }
