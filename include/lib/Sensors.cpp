@@ -122,8 +122,8 @@ void Sensors::getInitialOrientation()
         update();
 
         avg[0] += imu.ax;
-        avg[1] += imu.gy;
-        avg[2] += imu.gz;
+        avg[1] += imu.ay;
+        avg[2] += imu.az;
 
         usleep(5000);
     }

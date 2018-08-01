@@ -181,7 +181,7 @@ void *sensorsThread(void *data) {
     float tmpx = my_data->sensors->init_Orient[0];
     float tmpy = my_data->sensors->init_Orient[1];
     float tmpz = my_data->sensors->init_Orient[2];
-    my_data->enc_ang_bias[0] = atan2(tmpy , tmpy);
+    my_data->enc_ang_bias[0] = atan2(tmpy , tmpz);
     my_data->enc_ang_bias[1] = atan2(- tmpx , sqrt(tmpy * tmpy + tmpz * tmpz));
     //Initialize encoder
     my_data->encoder = new Encoder(0);
