@@ -206,9 +206,9 @@ void *sensorsThread(void *data) {
         my_data->sensors->update();         // update Sensor
         my_data->encoder->updateCounts();   // update encoders counts
         my_data->encoder->readAnglesRad(my_data->enc_angle);
-        my_data->enc_angle[0] = my_data->enc_angle[0] * my_data->enc_dir[0] - my_data->enc_ang_bias[0]; // change angle direction
-        my_data->enc_angle[1] = my_data->enc_angle[1] * my_data->enc_dir[1] - my_data->enc_ang_bias[1]; // change angle direction
-        my_data->enc_angle[2] = my_data->enc_angle[2] * my_data->enc_dir[2] - my_data->enc_ang_bias[2]; // change angle direction
+        my_data->enc_angle[0] = (my_data->enc_angle[0] - my_data->enc_ang_bias[0]) * my_data->enc_dir[0]; // change angle direction
+        my_data->enc_angle[1] = (my_data->enc_angle[1] - my_data->enc_ang_bias[1]) * my_data->enc_dir[1]; // change angle direction
+        my_data->enc_angle[2] = (my_data->enc_angle[2] - my_data->enc_ang_bias[2]) * my_data->enc_dir[2]; // change angle direction
         vec enc_angle_tmp(my_data->enc_angle, my_data->enc_angle+3);
         vec p{50,50,50};
         my_data->w = my_data->wSys.update(enc_angle_tmp, p, 0.005);

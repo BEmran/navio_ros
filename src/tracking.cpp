@@ -13,7 +13,8 @@ typedef Matrix3f mat3;
 typedef Vector3f vec3;
 mat3 skew(const vec3& x);
 vec3 skewInv(const mat3& x);
-void WdDyn(float* y, float* x, float* xdot, float* u, float t);
+vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec diffWDyn(vec& x, vec& xdot, vec& u, vec& par);
 
 /******************************************************************************
 main: Run main function
@@ -144,22 +145,22 @@ void control(dataStruct* data, float dt){
 
 
   //T. Lee Method
-  static vec3 thR; thR <<0,0,0;
+//  static vec3 thR; thR <<0,0,0;
 
-  static ODE ode_Wd_dot(3, *diffDyn);
-  static ODE ode_Rd_dot(9, *diffDyn);
+  static ODE ode_Wd_dot(3, *diffWDyn);
+  static ODE ode_Rd_dot(9, *diffRDyn);
 
-  mat3 Rd = mat3::Identity(); 
+  mat3 Rd = mat3::Identity();
 
   vec Rd_par = {50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0};
   vec Rdv(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
   mat3 Rd_dot(ode_Rd_dot.update(Rdv, Rd_par, 0.01).data());
-
+//  Rd_dot = Rd_dot*0;
   vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
   vec Wdv(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
   vec Wd_par = {50,50,50};
   vec3 Wd_dot(ode_Wd_dot.update(Wdv, Wd_par, 0.01).data());
-
+//  Wd_dot = 0*Wd_dot;
   float Jxy = 0.01, Jz = 0.1;
   mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
   mat3 Kr, Kw;
@@ -174,13 +175,13 @@ void control(dataStruct* data, float dt){
   vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
   vec3 A = R.transpose() * Rd * Wd;
   vec3 ew = W - A;
-  mat3 WR;
-  WR << W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1];
+  //mat3 WR;
+  //WR << W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1];
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
 
   static int ii = 0;
   ii++;
-  if (ii = 200) {
+  if (ii = 500) {
     ii = 0;
     cout << " Rd\n"       << Rd     << endl;
     cout << " Rd_dot\n"   << Rd_dot << endl;
@@ -188,15 +189,15 @@ void control(dataStruct* data, float dt){
     cout << " R\n"        << R      << endl;
     cout << " W\n"        << W      << endl;
     cout << " er\n"       << er     << endl;
-    cout << " WR\n"       << WR     << endl;
+    cout << " W\n"       << W     << endl;
   }
 //  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
 //  thR = thR + thR_dot*0.01;
 
-//  data->du[0] = 2.0;
-//  data->du[1] = M[0];
-//  data->du[2] = M[1];
-//  data->du[3] = M[2];
+  data->du[0] = 2.0;
+  data->du[1] = M[0];
+  data->du[2] = M[1];
+  data->du[3] = M[2];
 
   // My method
   /*static const float* wd;
@@ -309,30 +310,31 @@ mat3 vec2mat(VectorXf& V)
 ///*****************************************************************************************
 // RdDotDyn: Dynamic system: filter
 // *****************************************************************************************/
-//vec diffDyn(vec& x, vec& xdot, vec& u, float t)
-//{
-//    vec y(x.size());
-//    float wf = 50;
+vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par)
+{
+    vec y(x.size());
 
-//    for (int i=0; i < x.size(); i++){
-//      xdot[i] = -wf[i] * x[i] - wf[i] * wf[i] * u[i];
-//         y[i] =          x[i] +         wf[i] * u[i];
-//    }
-//    return y;
-//}
+    for (int r=0; r < 3; r++){
+      for (int c=0; c < 3; c++){
+	int i = r*3 + c;
+	xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
+           y[i] =           x[i] +          par[i] * u[i];
+      }
+    }
+    return y;
+}
 
 ///*****************************************************************************************
 // WdDyn: Dynamic system: filter
 // *****************************************************************************************/
-//vec filterDyn(vec& x, vec& xdot, vec& u)
-//{
-//  vec y(x.size());
-//  float wf = 100;
+vec diffWDyn(vec& x, vec& xdot, vec& u, vec& par)
+{
+  vec y(x.size());
 
-//  for (int i=0; i < x.size(); i++){
-//    xdot[i] = -wf[i] * x[i] - wf[i] * wf[i] * u[i];
-//       y[i] =          x[i] +         wf[i] * u[i];
-//  }
-//  return y;
-//}
+  for (int i=0; i < x.size(); i++){
+    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
+       y[i] =           x[i] +          par[i] * u[i];
+  }
+  return y;
+}
 
