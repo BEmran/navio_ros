@@ -35,7 +35,7 @@ add_library(${PROJECT_NAME}
   include/lib/TimeSampling.cpp
   include/lib/Encoder.cpp
   include/lib/Sensors.cpp
-  include/lib/DynSys.cpp
+  include/lib/ode.cpp
 )
 
 ## Declare a catkin package

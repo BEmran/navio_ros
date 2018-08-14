@@ -34,8 +34,8 @@ int main(int argc, char** argv) {
   data.is_rosnode_ready = false;
   data.is_sensors_ready = false;
 
-  data.wSys = DynSys(3, *wdotDyn);
-  data.w = data.wSys.getY();
+  data.wSys = ODE(3, *diffDyn);
+  data.w.push_back(0); data.w.push_back(0); data.w.push_back(0);
 
   TimeSampling st(_MAINFUN_FREQ);
   for (int i = 0; i < 25; ++i) {
@@ -145,15 +145,20 @@ void control(dataStruct* data, float dt){
 
   //T. Lee Method
   static vec3 thR; thR <<0,0,0;
-//  static DynSys diff_Wd_dot = DynSys(3, *wdotDyn);
-//  static const vec3* Wd_dot = diff_Wd_dot.getY();
 
-  mat3 Rd = mat3::Identity();
-  mat3 Rd_dot; Rd_dot.setZero();
+  static ODE ode_Wd_dot(3, *diffDyn);
+  static ODE ode_Rd_dot(9, *diffDyn);
+
+  mat3 Rd = mat3::Identity(); 
+
+  vec Rd_par = {50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0};
+  vec Rdv(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
+  mat3 Rd_dot(ode_Rd_dot.update(Rdv, Rd_par, 0.01).data());
+
   vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
-  vec3 Wd_dot; Wd_dot.setZero();
-//  float Wd_dot_vec[3] = {Wd_dot[0],Wd_dot[1],Wd_dot[2]};
-//  diff_Wd_dot.update(Wd_dot_vec,0.01);
+  vec Wdv(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
+  vec Wd_par = {50,50,50};
+  vec3 Wd_dot(ode_Wd_dot.update(Wdv, Wd_par, 0.01).data());
 
   float Jxy = 0.01, Jz = 0.1;
   mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
@@ -173,6 +178,18 @@ void control(dataStruct* data, float dt){
   WR << W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1];
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
 
+  static int ii = 0;
+  ii++;
+  if (ii = 200) {
+    ii = 0;
+    cout << " Rd\n"       << Rd     << endl;
+    cout << " Rd_dot\n"   << Rd_dot << endl;
+    cout << " Wd_dot\n"   << Wd_dot << endl;
+    cout << " R\n"        << R      << endl;
+    cout << " W\n"        << W      << endl;
+    cout << " er\n"       << er     << endl;
+    cout << " WR\n"       << WR     << endl;
+  }
 //  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
 //  thR = thR + thR_dot*0.01;
 
@@ -274,40 +291,48 @@ vec3 skewInv(const mat3& x)
   return y;
 }
 /*****************************************************************************************
- RdDyn: Dynamic system: filter
+ @mat2vec: matrix 3x3 3x3 to a vector 9x1
  *****************************************************************************************/
-void RdDyn(float* y, float* x, float* xdot, float* u, float t)
+VectorXf mat2vec(mat3& M)
 {
-  float wf = 100;
-
-  xdot[0] = wf * ( -x[0] + u[0]);
-  xdot[1] = wf * ( -x[1] + u[1]);
-  xdot[2] = wf * ( -x[2] + u[2]);
-  xdot[3] = 0;
-  xdot[4] = 0;
-  xdot[5] = 0;
-
-  y[0] = x[0];
-  y[1] = x[1];
-  y[2] = x[2];
-  y[3] = xdot[0];
-  y[4] = xdot[1];
-  y[5] = xdot[2];
+  Map<RowVectorXf> V(M.data(), M.size());
+  return V;
 }
-
 /*****************************************************************************************
- WdDyn: Dynamic system: filter
+ @vec2mat: convert a vector 9x1 to matrix 3x3
  *****************************************************************************************/
-void WdDyn(float* y, float* x, float* xdot, float* u, float t)
+mat3 vec2mat(VectorXf& V)
 {
-  float wf = 100;
-
-  xdot[0] = wf * ( -x[0] + u[0]);
-  xdot[1] = wf * ( -x[1] + u[1]);
-  xdot[2] = wf * ( -x[2] + u[2]);
-
-  y[0] = x[0];
-  y[1] = x[1];
-  y[2] = x[2];
+  Map<mat3> M(V.data());
+  return M;
 }
+///*****************************************************************************************
+// RdDotDyn: Dynamic system: filter
+// *****************************************************************************************/
+//vec diffDyn(vec& x, vec& xdot, vec& u, float t)
+//{
+//    vec y(x.size());
+//    float wf = 50;
+
+//    for (int i=0; i < x.size(); i++){
+//      xdot[i] = -wf[i] * x[i] - wf[i] * wf[i] * u[i];
+//         y[i] =          x[i] +         wf[i] * u[i];
+//    }
+//    return y;
+//}
+
+///*****************************************************************************************
+// WdDyn: Dynamic system: filter
+// *****************************************************************************************/
+//vec filterDyn(vec& x, vec& xdot, vec& u)
+//{
+//  vec y(x.size());
+//  float wf = 100;
+
+//  for (int i=0; i < x.size(); i++){
+//    xdot[i] = -wf[i] * x[i] - wf[i] * wf[i] * u[i];
+//       y[i] =          x[i] +         wf[i] * u[i];
+//  }
+//  return y;
+//}
 

@@ -11,10 +11,10 @@ Header files
 **************************************************************************************************/
 #include <signal.h>                         // signal ctrl+c
 #include <stdio.h>                          // printf
-#include <lib/TimeSampling.h>               // time sampling library
+#include "lib/TimeSampling.h"               // time sampling library
 #include <testbed_navio/ros_node.h>         // ros node class
 #include <testbed_navio/navio_interface.h>  // navio interface pwm, sensors ...
-#include "DynSys.h"
+#include "lib/ode.h"
 
 /**************************************************************************************************
 Global variables
@@ -30,7 +30,7 @@ pthread_t _Thread_Control;
 
 bool _CloseRequested = false;
 using namespace std;
-
+typedef std::vector<float> vec;
 /**************************************************************************************************
 Define structures
 **************************************************************************************************/
@@ -58,8 +58,8 @@ struct dataStruct {
     float quat[4];
     float du_max[4], du_min[4]; // maximum and minimum du values
 
-    const float* w;
-    DynSys wSys;
+    vec w;
+    ODE wSys;
 
     FILE *file;
 
@@ -83,7 +83,7 @@ void *controlThread(void *data);
 void initializeParams(ros::NodeHandle& n, dataStruct* data);
 void printRecord(FILE* file, float data[]);
 void control(dataStruct* data, float dt);
-void wdotDyn(float* y, float* x, float* xdot, float* u, float t);
+vec diffDyn(vec& x, vec& xdot, vec& u, vec& par);
 /**************************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
 **************************************************************************************************/
@@ -209,9 +209,9 @@ void *sensorsThread(void *data) {
         my_data->enc_angle[0] = my_data->enc_angle[0] * my_data->enc_dir[0] - my_data->enc_ang_bias[0]; // change angle direction
         my_data->enc_angle[1] = my_data->enc_angle[1] * my_data->enc_dir[1] - my_data->enc_ang_bias[1]; // change angle direction
         my_data->enc_angle[2] = my_data->enc_angle[2] * my_data->enc_dir[2] - my_data->enc_ang_bias[2]; // change angle direction
-
-        my_data->w = my_data->wSys.getY();
-        my_data->wSys.update(my_data->enc_angle,0,0.005);
+        vec enc_angle_tmp(my_data->enc_angle, my_data->enc_angle+3);
+        vec p{50,50,50};
+        my_data->w = my_data->wSys.update(enc_angle_tmp, p, 0.005);
 
         my_data->record[1] = my_data->sensors->imu.ax;
         my_data->record[2] = my_data->sensors->imu.ay;
@@ -466,19 +466,27 @@ void printRecord(FILE* file, float data[]){
 }
 
 /*****************************************************************************************
- wdotDyn: Dynamic system for a derivative + filter
+ diffDyn: Dynamic system for a derivative + filter
  *****************************************************************************************/
-void wdotDyn(float* y, float* x, float* xdot, float* u, float t)
+vec diffDyn(vec& x, vec& xdot, vec& u, vec& par)
 {
-    float wf[] = {50, 50, 50};
+    // define output vector
+    vec y(x.size());
 
-    xdot[0] = -wf[0] * x[0] - wf[0] * wf[0] * u[0];
-    xdot[1] = -wf[1] * x[1] - wf[1] * wf[1] * u[1];
-    xdot[2] = -wf[2] * x[2] - wf[2] * wf[2] * u[2];
+    // if the parameter vector is empty initialize by default value
+    if (par.empty())
+      for (int i=0; i< x.size(); i++){
+        par.push_back(50.0);
+      }
 
-    y[0] = x[0] + wf[0] * u[0];
-    y[1] = x[1] + wf[1] * u[1];
-    y[2] = x[2] + wf[2] * u[2];
+    // apply numerical differential dynamics for all input
+    for (int i=0; i < x.size(); i++){
+      xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
+         y[i] =           x[i] +          par[i] * u[i];
+    }
+
+    // return differentiated signal
+    return y;
 }
 #endif // TESTBED
 
