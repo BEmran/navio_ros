@@ -5,11 +5,16 @@
  */
 #include "testbed_navio/testbed_demo.h"
 #include <eigen3/Eigen/Core>
-//#include <eigen3/Eigen/Eigen>
+///#include <eigen3/Eigen/Eigen>
 #include <eigen3/Eigen/Geometry>
 
-void WdDyn(float* y, float* x, float* xdot, float* u, float t);
 using namespace Eigen;
+typedef Matrix3f mat3;
+typedef Vector3f vec3;
+mat3 skew(const vec3& x);
+vec3 skewInv(const mat3& x);
+void WdDyn(float* y, float* x, float* xdot, float* u, float t);
+
 /******************************************************************************
 main: Run main function
 ******************************************************************************/
@@ -138,40 +143,46 @@ void control(dataStruct* data, float dt){
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
 
 
-  /* T. Lee Method
-   * Matrix3f Rd(Matrix3f::Identity());
-  Vector3f Wd; Wd.setZero();
-  Vector3f er;
-  Vector3f Wd_dot; Wd_dot.setZero();
+  //T. Lee Method
+  static vec3 thR; thR <<0,0,0;
+//  static DynSys diff_Wd_dot = DynSys(3, *wdotDyn);
+//  static const vec3* Wd_dot = diff_Wd_dot.getY();
+
+  mat3 Rd = mat3::Identity();
+  mat3 Rd_dot; Rd_dot.setZero();
+  vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
+  vec3 Wd_dot; Wd_dot.setZero();
+//  float Wd_dot_vec[3] = {Wd_dot[0],Wd_dot[1],Wd_dot[2]};
+//  diff_Wd_dot.update(Wd_dot_vec,0.01);
 
   float Jxy = 0.01, Jz = 0.1;
-  Matrix3f J;
-  J <<  Jxy,   0,  0,
-          0, Jxy,  0,
-          0,   0, Jz;
-  Matrix3f Kr, Kw;
+  mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
+  mat3 Kr, Kw;
   Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
   Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
-  Matrix3f R;
-  R =   AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
-      * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
-      * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
-  Vector3f W;
-  W << data->w[0], data->w[1], data->w[2];
-  Matrix3f Rt = R.transpose();
-  Matrix3f Rdt = R.transpose();
 
-  Matrix3f tmper = 0.5 * (Rdt * R - Rt * Rd);
-  er << tmper(2,1), tmper(0,2), tmper(1,0);
-  Vector3f A = Rt * Rd * Wd;
-  Vector3f ew = W - A;
-  Matrix3f tmpA;
-  tmpA <<    0, -A(2),  A(1),
-          A(2),     0, -A(0),
-         -A(2),  A(0),     0;
-  Vector3f M = - Kr * er - Kw * ew + tmpA * J * A + J * Rt * Rd * Wd_dot;
-  */
-  static const float* wd;
+  mat3 R;
+  R =   AngleAxisf(data->enc_angle[2], vec3::UnitZ())
+      * AngleAxisf(data->enc_angle[1], vec3::UnitY())
+      * AngleAxisf(data->enc_angle[0], vec3::UnitX());
+  vec3 W{data->w[0], data->w[1], data->w[2]};
+  vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
+  vec3 A = R.transpose() * Rd * Wd;
+  vec3 ew = W - A;
+  mat3 WR;
+  WR << W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1];
+  vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
+
+//  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
+//  thR = thR + thR_dot*0.01;
+
+//  data->du[0] = 2.0;
+//  data->du[1] = M[0];
+//  data->du[2] = M[1];
+//  data->du[3] = M[2];
+
+  // My method
+  /*static const float* wd;
   static DynSys wdSys = DynSys(3, *WdDyn);
   //static DynSys rdSys = DynSys(3, *RdDyn);
   wd = wdSys.getY();
@@ -239,8 +250,29 @@ void control(dataStruct* data, float dt){
   data->du[1] = M[0];
   data->du[2] = M[1];
   data->du[3] = M[2];
+  */
 }
 
+/*****************************************************************************************
+ @skew: return a skew matrix of the input vector
+ *****************************************************************************************/
+mat3 skew(const vec3& x)
+{
+  mat3 y;
+  y <<    0, -x(2),  x(1),
+       x(2),     0, -x(0),
+      -x(1),  x(0),     0;
+  return y;
+}
+/*****************************************************************************************
+ @skewInv: return a skew inverse vector of the the input matrix
+ *****************************************************************************************/
+vec3 skewInv(const mat3& x)
+{
+  vec3 y;
+  y << x(2,1), x(0,2), x(1,0);
+  return y;
+}
 /*****************************************************************************************
  RdDyn: Dynamic system: filter
  *****************************************************************************************/
@@ -268,13 +300,14 @@ void RdDyn(float* y, float* x, float* xdot, float* u, float t)
  *****************************************************************************************/
 void WdDyn(float* y, float* x, float* xdot, float* u, float t)
 {
-    float wf = 100;
+  float wf = 100;
 
-    xdot[0] = wf * ( -x[0] + u[0]);
-    xdot[1] = wf * ( -x[1] + u[1]);
-    xdot[2] = wf * ( -x[2] + u[2]);
+  xdot[0] = wf * ( -x[0] + u[0]);
+  xdot[1] = wf * ( -x[1] + u[1]);
+  xdot[2] = wf * ( -x[2] + u[2]);
 
-    y[0] = x[0];
-    y[1] = x[1];
-    y[2] = x[2];
+  y[0] = x[0];
+  y[1] = x[1];
+  y[2] = x[2];
 }
+
