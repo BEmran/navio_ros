@@ -143,45 +143,66 @@ void control(dataStruct* data, float dt){
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
 
-
-  //T. Lee Method
-//  static vec3 thR; thR <<0,0,0;
-
   static ODE ode_Wd_dot(3, *diffWDyn);
   static ODE ode_Rd_dot(9, *diffRDyn);
-
-  mat3 Rd = mat3::Identity();
-
+  // get input data -----------------------------------------------------------
+  mat3 R, Rd;
+  R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
+     * AngleAxisf(data->enc_angle[1], vec3::UnitY())
+     * AngleAxisf(data->enc_angle[0], vec3::UnitX());
+  Rd =  AngleAxisf(data->rosnode->_cmd_ang[2], vec3::UnitZ())
+      * AngleAxisf(data->rosnode->_cmd_ang[1], vec3::UnitY())
+      * AngleAxisf(data->rosnode->_cmd_ang[0], vec3::UnitX());
+  vec3 W{data->w[0], data->w[1], data->w[2]};
+  // generate Rd_dot ----------------------------------------------------------
   vec Rd_par = {50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0};
-  vec Rdv(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
-  mat3 Rd_dot(ode_Rd_dot.update(Rdv, Rd_par, 0.01).data());
-//  Rd_dot = Rd_dot*0;
-  vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
-  vec Wdv(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
+  vec Rdvec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
+  mat3 Rd_dot(ode_Rd_dot.update(Rdvec, Rd_par, 0.01).data());
+  // generate Wd_dot ----------------------------------------------------------
   vec Wd_par = {50,50,50};
-  vec3 Wd_dot(ode_Wd_dot.update(Wdv, Wd_par, 0.01).data());
-//  Wd_dot = 0*Wd_dot;
+  // system and control parameters --------------------------------------------
   float Jxy = 0.01, Jz = 0.1;
   mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
   mat3 Kr, Kw;
   Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
   Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
-
-  mat3 R;
-  R =   AngleAxisf(data->enc_angle[2], vec3::UnitZ())
-      * AngleAxisf(data->enc_angle[1], vec3::UnitY())
-      * AngleAxisf(data->enc_angle[0], vec3::UnitX());
-  vec3 W{data->w[0], data->w[1], data->w[2]};
+  /////////////////////////////////////////////////////////////////////////////
+  /// T. Lee Method
+  /*
+  static vec3 thR; thR <<0,0,0;
+  // traking error ------------------------------------------------------------
   vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
   vec3 A = R.transpose() * Rd * Wd;
   vec3 ew = W - A;
-  //mat3 WR;
-  //WR << W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1];
+  vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
+  vec Wdvec(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
+  vec Wd_dotvec = {0,0,0};
+  ode_Wd_dot.update(Wdvec, Wd_dotvec, Wd_par, 0.01).data();
+  vec3 Wd_dot(Wd_dotvec.data());
+  //mat3 WR ={W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1]}
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
-
+  //  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
+  //  thR = thR + thR_dot*0.01;
+  */
+  /////////////////////////////////////////////////////////////////////////////
+  /// DSC method
+  mat3 th(mat3::Identity());
+  vec3 er = skewInv(mat3::Identity() - Rd.transpose()*R);
+  vec3 qr = - Kr * er;
+  vec3 Wc = skewInv((R.transpose()*Rd).inverse()*(-Rd_dot.transpose()*R + skew(qr)));
+  vec wc = {Wc(0),Wc(1),Wc(3)};
+  vec Wd_dotvec = {0,0,0};
+  vec3 Wd(ode_Wd_dot.update(wc, Wd_dotvec, Wd_par, 0.01).data());
+  vec3 Wd_dot(Wd_dotvec.data());
+  vec3 ew = W - Wd;
+  vec3 f = - W.cross(J*W);
+  vec3 qw = Wd_dot - f - Kw * ew;
+  vec3 M = th.inverse() * qw;
+  /////////////////////////////////////////////////////////////////////////////
+  // print info ---------------------------------------------------------------
   static int ii = 0;
   ii++;
-  if (ii = 500) {
+  if (ii == 100) {
     ii = 0;
     cout << " Rd\n"       << Rd     << endl;
     cout << " Rd_dot\n"   << Rd_dot << endl;
@@ -189,86 +210,14 @@ void control(dataStruct* data, float dt){
     cout << " R\n"        << R      << endl;
     cout << " W\n"        << W      << endl;
     cout << " er\n"       << er     << endl;
-    cout << " W\n"       << W     << endl;
+    cout << " W\n"        << W      << endl;
   }
-//  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
-//  thR = thR + thR_dot*0.01;
 
+  // send output data ---------------------------------------------------------
   data->du[0] = 2.0;
   data->du[1] = M[0];
   data->du[2] = M[1];
   data->du[3] = M[2];
-
-  // My method
-  /*static const float* wd;
-  static DynSys wdSys = DynSys(3, *WdDyn);
-  //static DynSys rdSys = DynSys(3, *RdDyn);
-  wd = wdSys.getY();
-  //rd = rdSys.getY();
-
-  Quaternionf qd;
-  qd.x() = data->rosnode->_cmd_quat.x;
-  qd.y() = data->rosnode->_cmd_quat.x;
-  qd.z() = data->rosnode->_cmd_quat.x;
-  qd.w() = data->rosnode->_cmd_quat.x;
-  //Matrix3f Rd = qd.normalized().toRotationMatrix();
-
-  Matrix3f Rd(Matrix3f::Identity());
-  Matrix3f Rd_dot; Rd_dot.setZero();
-  float Jxy = 0.01, Jz = 0.1;
-  Matrix3f J;
-  J <<  Jxy,   0,  0,
-      0, Jxy,  0,
-      0,   0, Jz;
-  Matrix3f Kr, Kw;
-  Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
-  Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
-  ////////////////////
-  Matrix3f R;
-  R =   AngleAxisf(data->enc_angle[2], Vector3f::UnitZ())
-      * AngleAxisf(data->enc_angle[1], Vector3f::UnitY())
-      * AngleAxisf(data->enc_angle[0], Vector3f::UnitX());
-  Vector3f W;
-  W << data->w[0], data->w[1], data->w[2];
-  ////////////////////
-  Matrix3f tmp_er = Matrix3f::Identity() - Rd.transpose()*R;
-  Vector3f er;
-  er <<  tmp_er(2,1), tmp_er(0,2), tmp_er(1,0);
-  Vector3f temp_qr = - Kr * er;
-  Matrix3f qr;
-  qr <<         0, -temp_qr(2),  temp_qr(1),
-       temp_qr(2),           0, -temp_qr(0),
-      -temp_qr(2),  temp_qr(0),           0;
-  Matrix3f temp_wc = (R.transpose()*Rd)*(-Rd_dot.transpose()*R + qr);
-  Vector3f Wc;
-  Wc <<  temp_wc(2,1), temp_wc(0,2), temp_wc(1,0);
-  ////////////////////
-  float wc[3] = {Wc(0),Wc(1),Wc(3)};
-  wdSys.update(wc,0,0.005);
-  Vector3f Wd;
-  Wd << wd[0], wd[1], wd[2];
-  Vector3f Wd_dot;
-  float wf = 100;
-  Wd_dot << wf * ( -wd[0] + wc[0]),
-            wf * ( -wd[1] + wc[1]),
-            wf * ( -wd[2] + wc[2]);
-  ////////////////////
-  Matrix3f th(Matrix3f::Identity());
-  Vector3f ew = W - Wd;
-  Vector3f qw = Wd_dot + Kw * ew;
-  Vector3f M = th.inverse() * qw;
-
-  static int ii = 0;
-  ii++;
-  if (ii = 200) {
-    ii = 0;
-    printf("e[0]= %+5.2f\t e[1]= %+5.2f\t e[2]= %+5.2f\n", er[0],er[1],er[2]);
-  }
-  data->du[0] = 2.0;
-  data->du[1] = M[0];
-  data->du[2] = M[1];
-  data->du[3] = M[2];
-  */
 }
 
 /*****************************************************************************************
