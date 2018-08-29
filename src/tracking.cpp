@@ -147,8 +147,8 @@ void control(dataStruct* data, float dt){
   static MatrixXf VV = MatrixXf::Random(3,9);
   vec Rdvec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
   vec VVvec(VV.data(), VV.data() + VV.rows() * VV.cols());
-  static ODE ode_Wd_dot(3, *diffWDyn);
-  static ODE ode_Rd_dot(9, *diffRDyn, Rdvec);
+  static ODE ode_Wd(3, *WdDyn);
+  static ODE ode_Rd(9, *RdDyn, Rdvec);
   static ODE ode_RBF(18);
   ode_RBF.setX(VVvec);
   // get input data -----------------------------------------------------------
@@ -164,7 +164,7 @@ void control(dataStruct* data, float dt){
   vec Rd_par = {50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0};
   vec Rd_dotvec = {0,0,0,0,0,0,0,0,0};
   vec Rcvec(Rc.data(), Rc.data() + Rc.rows() * Rc.cols());
-  Rd = mat3 (ode_Rd_dot.update(Rcvec, Rd_dotvec, Rd_par, 0.01).data());
+  Rd = mat3 (ode_Rd.update(Rcvec, Rd_dotvec, Rd_par, 0.01).data());
   mat3 Rd_dot(Rd_dotvec.data());
   // system and control parameters --------------------------------------------
   float Jxy = 0.01, Jz = 0.1;
@@ -180,10 +180,10 @@ void control(dataStruct* data, float dt){
   vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
   vec3 A = R.transpose() * Rd * Wd;
   vec3 ew = W - A;
-  vec3 Wd = skewInv(Rd.transpose() * Rd_dot);
+  Wd = skewInv(Rd.transpose() * Rd_dot);
   vec Wdvec(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
   vec Wd_dotvec = {0,0,0};
-  ode_Wd_dot.update(Wdvec, Wd_dotvec, Wd_par, 0.01).data();
+  ode_Wd.update(wcvec, Wd_dotvec, Wd_par, 0.01);
   vec3 Wd_dot(Wd_dotvec.data());
   //mat3 WR ={W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1]}
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
@@ -198,7 +198,7 @@ void control(dataStruct* data, float dt){
   //  vec3 Wc = skewInv((R.transpose()*Rd).inverse()*(-Rd_dot.transpose()*R + skew(qr)));
   //  vec wc = {Wc(0),Wc(1),Wc(2)};
   //  vec Wd_dotvec = {0,0,0};
-  //  vec3 Wd(ode_Wd_dot.update(wc, Wd_dotvec, Wd_par, 0.01).data());
+  //  Wd = vec3 (ode_Wd.update(wcvec, Wd_dotvec, Wd_par, 0.01).data());
   //  vec3 Wd_dot(Wd_dotvec.data());
   //  vec3 ew = W - Wd;
   //  vec3 f = - W.cross(J*W);
@@ -217,7 +217,7 @@ void control(dataStruct* data, float dt){
   vec wcvec = {Wc(0),Wc(1),Wc(2)};
   vec Wd_par = {50,50,50};
   vec Wd_dotvec = {0,0,0};
-  Wd = vec3 (ode_Wd_dot.update(wcvec, Wd_dotvec, Wd_par, 0.01).data());
+  Wd = vec3 (ode_Wd.update(wcvec, Wd_dotvec, Wd_par, 0.01).data());
   vec3 Wd_dot(Wd_dotvec.data());
   vec3 ew = W - Wd;
   // RBF-NN -------------------------------------------------------------------
@@ -304,9 +304,9 @@ mat3 vec2mat(VectorXf& V)
   return M;
 }
 ///*****************************************************************************************
-// RdDotDyn: Dynamic system: filter
+// diffRDyn: Dynamic system: filter
 // *****************************************************************************************/
-vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par)
+vec diffRdDyn(vec& x, vec& xdot, vec& u, vec& par)
 {
   vec y(x.size());
 
@@ -314,8 +314,35 @@ vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par)
     for (int c=0; c < 3; c++){
       int i = r*3 + c;
       xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-      y[i] =           x[i] +          par[i] * u[i];
+      y[i]    =           x[i] +          par[i] * u[i];
     }
+  }
+  return y;
+}
+
+///*****************************************************************************************
+// diffWDyn: Dynamic system: filter
+// *****************************************************************************************/
+vec diffWdDyn(vec& x, vec& xdot, vec& u, vec& par)
+{
+  vec y(x.size());
+
+  for (int i=0; i < x.size(); i++){
+    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
+    y[i]    =           x[i] +          par[i] * u[i];
+  }
+  return y;
+}
+///*****************************************************************************************
+// RdDyn: Dynamic system: filter
+// *****************************************************************************************/
+vec RdDyn(vec& x, vec& xdot, vec& u, vec& par)
+{
+  vec y(x.size());
+
+  for (int k=0; k < 9; k++){
+    xdot[k] = - par[k] * (u[k] - x[k]);
+    y[k]    =     x[k];
   }
   return y;
 }
@@ -323,14 +350,13 @@ vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par)
 ///*****************************************************************************************
 // WdDyn: Dynamic system: filter
 // *****************************************************************************************/
-vec diffWDyn(vec& x, vec& xdot, vec& u, vec& par)
+vec WdDyn(vec& x, vec& xdot, vec& u, vec& par)
 {
   vec y(x.size());
 
-  for (int i=0; i < x.size(); i++){
-    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-    y[i] =           x[i] +          par[i] * u[i];
+  for (int k=0; k < 3; k++){
+    xdot[k] = - par[k] * (u[k] - x[k]);
+    y[k]    =     x[k];
   }
   return y;
 }
-
