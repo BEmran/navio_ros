@@ -142,24 +142,30 @@ void control(dataStruct* data, float dt){
   //    }
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
-
+  static mat3 Rd = mat3::Identity();
+  static vec3 Wd = vec3::Zero(3,1);
+  static MatrixXf VV = MatrixXf::Random(3,9);
+  vec Rdvec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
+  vec VVvec(VV.data(), VV.data() + VV.rows() * VV.cols());
   static ODE ode_Wd_dot(3, *diffWDyn);
-  static ODE ode_Rd_dot(9, *diffRDyn);
+  static ODE ode_Rd_dot(9, *diffRDyn, Rdvec);
+  static ODE ode_RBF(18);
+  ode_RBF.setX(VVvec);
   // get input data -----------------------------------------------------------
-  mat3 R, Rd;
+  mat3 R, Rc;
   R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
-     * AngleAxisf(data->enc_angle[1], vec3::UnitY())
-     * AngleAxisf(data->enc_angle[0], vec3::UnitX());
-  Rd =  AngleAxisf(data->rosnode->_cmd_ang[2], vec3::UnitZ())
+      * AngleAxisf(data->enc_angle[1], vec3::UnitY())
+      * AngleAxisf(data->enc_angle[0], vec3::UnitX());
+  Rc =  AngleAxisf(data->rosnode->_cmd_ang[2], vec3::UnitZ())
       * AngleAxisf(data->rosnode->_cmd_ang[1], vec3::UnitY())
       * AngleAxisf(data->rosnode->_cmd_ang[0], vec3::UnitX());
   vec3 W{data->w[0], data->w[1], data->w[2]};
   // generate Rd_dot ----------------------------------------------------------
   vec Rd_par = {50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0,50.0};
-  vec Rdvec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
-  mat3 Rd_dot(ode_Rd_dot.update(Rdvec, Rd_par, 0.01).data());
-  // generate Wd_dot ----------------------------------------------------------
-  vec Wd_par = {50,50,50};
+  vec Rd_dotvec = {0,0,0,0,0,0,0,0,0};
+  vec Rcvec(Rc.data(), Rc.data() + Rc.rows() * Rc.cols());
+  Rd = mat3 (ode_Rd_dot.update(Rcvec, Rd_dotvec, Rd_par, 0.01).data());
+  mat3 Rd_dot(Rd_dotvec.data());
   // system and control parameters --------------------------------------------
   float Jxy = 0.01, Jz = 0.1;
   mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
@@ -186,18 +192,59 @@ void control(dataStruct* data, float dt){
   */
   /////////////////////////////////////////////////////////////////////////////
   /// DSC method
-  mat3 th(mat3::Identity());
-  vec3 er = skewInv(mat3::Identity() - Rd.transpose()*R);
+  //  mat3 th(mat3::Identity());
+  //  vec3 er = skewInv(mat3::Identity() - Rd.transpose()*R);
+  //  vec3 qr = - Kr * er;
+  //  vec3 Wc = skewInv((R.transpose()*Rd).inverse()*(-Rd_dot.transpose()*R + skew(qr)));
+  //  vec wc = {Wc(0),Wc(1),Wc(2)};
+  //  vec Wd_dotvec = {0,0,0};
+  //  vec3 Wd(ode_Wd_dot.update(wc, Wd_dotvec, Wd_par, 0.01).data());
+  //  vec3 Wd_dot(Wd_dotvec.data());
+  //  vec3 ew = W - Wd;
+  //  vec3 f = - W.cross(J*W);
+  //  vec3 qw = Wd_dot - f - Kw * ew;
+  //  vec3 M = th.inverse() * qw;
+  /////////////////////////////////////////////////////////////////////////////
+  /// DSC method 2
+  mat3 th = mat3::Identity();
+  mat3 Rtelda = Rd.transpose() * R;
+  vec3 er = 0.5 * skewInv(Rtelda - Rtelda.transpose());
+  mat3 A = 0.5 * (mat3::Identity() * Rtelda.trace() - Rtelda.transpose());
   vec3 qr = - Kr * er;
-  vec3 Wc = skewInv((R.transpose()*Rd).inverse()*(-Rd_dot.transpose()*R + skew(qr)));
-  vec wc = {Wc(0),Wc(1),Wc(3)};
+  vec3 C = skewInv(Rd_dot.transpose()*R - R.transpose()*Rd_dot);
+  vec3 Wc = A.inverse() * (qr - C);
+  // generate Wd_dot ----------------------------------------------------------
+  vec wcvec = {Wc(0),Wc(1),Wc(2)};
+  vec Wd_par = {50,50,50};
   vec Wd_dotvec = {0,0,0};
-  vec3 Wd(ode_Wd_dot.update(wc, Wd_dotvec, Wd_par, 0.01).data());
+  Wd = vec3 (ode_Wd_dot.update(wcvec, Wd_dotvec, Wd_par, 0.01).data());
   vec3 Wd_dot(Wd_dotvec.data());
   vec3 ew = W - Wd;
+  // RBF-NN -------------------------------------------------------------------
+  VectorXf cen(9); cen << -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0;
+  float sigma = 20;
+  float eta = 10;
+  vec3 dist;
+  MatrixXf VV_dot = MatrixXf::Zero(3,9);
+  VectorXf tmp(9);
+  for (int i=0; i < 3; i++){
+    for (int j=0; i < 9; i++){
+      float z = ew[i] - cen[j];
+      tmp[j] = exp(-z/2.0/sigma/sigma);
+    }
+    VectorXf p = tmp / sqrt(2 * PI) / sigma;
+    dist[i] = VV.row(i) * p;
+    VV_dot.row(i)  = eta * (ew[i] * p) - 0.01 * norm(ew[i]) * VV.row(i);
+  }
+  //
   vec3 f = - W.cross(J*W);
-  vec3 qw = Wd_dot - f - Kw * ew;
+  vec3 qw = Wd_dot - f - dist - Kw * ew;
   vec3 M = th.inverse() * qw;
+  // integration
+  vec vv_par;
+  vec VV_dotvec(VV_dot.data(), VV_dot.data() + VV_dot.rows() * VV_dot.cols());
+  vec tmp_vv = ode_RBF.update(VV_dotvec, vv_par, 0.01);
+  VV = Eigen::Map<Matrix<float,3,9>>(tmp_vv.data());
   /////////////////////////////////////////////////////////////////////////////
   // print info ---------------------------------------------------------------
   static int ii = 0;
@@ -227,7 +274,7 @@ mat3 skew(const vec3& x)
 {
   mat3 y;
   y <<    0, -x(2),  x(1),
-       x(2),     0, -x(0),
+      x(2),     0, -x(0),
       -x(1),  x(0),     0;
   return y;
 }
@@ -261,16 +308,16 @@ mat3 vec2mat(VectorXf& V)
 // *****************************************************************************************/
 vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par)
 {
-    vec y(x.size());
+  vec y(x.size());
 
-    for (int r=0; r < 3; r++){
-      for (int c=0; c < 3; c++){
-	int i = r*3 + c;
-	xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-           y[i] =           x[i] +          par[i] * u[i];
-      }
+  for (int r=0; r < 3; r++){
+    for (int c=0; c < 3; c++){
+      int i = r*3 + c;
+      xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
+      y[i] =           x[i] +          par[i] * u[i];
     }
-    return y;
+  }
+  return y;
 }
 
 ///*****************************************************************************************
@@ -282,7 +329,7 @@ vec diffWDyn(vec& x, vec& xdot, vec& u, vec& par)
 
   for (int i=0; i < x.size(); i++){
     xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-       y[i] =           x[i] +          par[i] * u[i];
+    y[i] =           x[i] +          par[i] * u[i];
   }
   return y;
 }
