@@ -281,7 +281,7 @@ void control(dataStruct* data, float dt){
 
   // send output data ---------------------------------------------------------
   //vec3 M = vec3::Zero(3);
-  data->du[0] = 2.0;
+  data->du[0] = 1.5;
   data->du[1] = M[0];
   data->du[2] = M[1];
   data->du[3] = M[2];
@@ -399,7 +399,7 @@ vec3 rotation_control(dataStruct* data)
   mat3 KR;
   KR << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
   mat3 KF = 50 * mat3::Identity();
-  float maxW = 10;
+  float maxW = 1;
   // get info
   mat3 R, Rc;
   R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
@@ -442,7 +442,9 @@ vec3 rotation_control(dataStruct* data)
   cout << "A33\n"       << A33          << endl;
   cout << "Vr\n"        << Vr           << endl;
   cout << "Wc\n"        << Wc           << endl;
+*/
   cout << "Wc_sat\n"    << Wc_sat       << endl;
+/*
   cout << "A39\n"       << A39          << endl;
   cout << "tmp\n"       << tmp          << endl;
   cout << "Rd_dot\n"    << Rd_dot       << endl;
@@ -501,7 +503,7 @@ vec3 anguler_control(dataStruct* data, vec3 Wc)
   mat3 B; B << 0.01,   0,  0, 0, 0.01,  0, 0,   0, 0.001;
   B = J.inverse() * B;  mat3 Kw;
   Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
-  float maxM = 1;
+  float maxM = 0.2;
   mat3 KF = 50 * mat3::Identity();
   // get input data -----------------------------------------------------------
   vec3 W{data->w[0], data->w[1], data->w[2]};
@@ -545,7 +547,7 @@ vec3 RBF(vec3 e){
   const float _PI = 3.14159;
   MatrixXf V = MatrixXf::Random(3,9);
   static bool init = true;
-  static ODE ode_V(3);
+  static ODE ode_V(27);
   if (init)
   {
     init = false;
