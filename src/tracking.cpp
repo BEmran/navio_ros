@@ -13,8 +13,10 @@ typedef Matrix3f mat3;
 typedef Vector3f vec3;
 mat3 skew(const vec3& x);
 vec3 skewInv(const mat3& x);
-vec diffRDyn(vec& x, vec& xdot, vec& u, vec& par);
-vec diffWDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec diffRdDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec diffWdDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec RdDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec WdDyn(vec& x, vec& xdot, vec& u, vec& par);
 
 /******************************************************************************
 main: Run main function
@@ -151,6 +153,7 @@ void control(dataStruct* data, float dt){
   static ODE ode_Rd(9, *RdDyn, Rdvec);
   static ODE ode_RBF(18);
   ode_RBF.setX(VVvec);
+
   // get input data -----------------------------------------------------------
   mat3 R, Rc;
   R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
@@ -172,26 +175,28 @@ void control(dataStruct* data, float dt){
   mat3 Kr, Kw;
   Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
   Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
+
   /////////////////////////////////////////////////////////////////////////////
   /// T. Lee Method
-  /*
+
   static vec3 thR; thR <<0,0,0;
   // traking error ------------------------------------------------------------
   vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
   vec3 A = R.transpose() * Rd * Wd;
   vec3 ew = W - A;
   Wd = skewInv(Rd.transpose() * Rd_dot);
-  vec Wdvec(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
+  vec wdvec(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
   vec Wd_dotvec = {0,0,0};
-  ode_Wd.update(wcvec, Wd_dotvec, Wd_par, 0.01);
+  vec Wd_par = {50, 50, 50};
+  Wd = vec3 (ode_Wd.update(wdvec, Wd_dotvec, Wd_par, 0.01).data());
   vec3 Wd_dot(Wd_dotvec.data());
   //mat3 WR ={W[2]*W[3], 0,0,0, W[1]*W[3],0,0,0, W[1]*W[1]}
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
   //  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
   //  thR = thR + thR_dot*0.01;
-  */
   /////////////////////////////////////////////////////////////////////////////
-  /// DSC method
+  /*
+/// DSC method
   //  mat3 th(mat3::Identity());
   //  vec3 er = skewInv(mat3::Identity() - Rd.transpose()*R);
   //  vec3 qr = - Kr * er;
@@ -211,60 +216,68 @@ void control(dataStruct* data, float dt){
   vec3 er = 0.5 * skewInv(Rtelda - Rtelda.transpose());
   mat3 A = 0.5 * (mat3::Identity() * Rtelda.trace() - Rtelda.transpose());
   vec3 qr = - Kr * er;
-  vec3 C = skewInv(Rd_dot.transpose()*R - R.transpose()*Rd_dot);
+  vec3 C = 0.5 * skewInv(Rd_dot.transpose()*R - R.transpose()*Rd_dot);
   vec3 Wc = A.inverse() * (qr - C);
   // generate Wd_dot ----------------------------------------------------------
-  vec wcvec = {Wc(0),Wc(1),Wc(2)};
-  vec Wd_par = {50,50,50};
-  vec Wd_dotvec = {0,0,0};
+  vec wcvec = {Wc[0],Wc[1],Wc[2]};
+  vec Wd_par = {50, 50, 50};
+  vec Wd_dotvec = {0, 0, 0};
   Wd = vec3 (ode_Wd.update(wcvec, Wd_dotvec, Wd_par, 0.01).data());
   vec3 Wd_dot(Wd_dotvec.data());
   vec3 ew = W - Wd;
+
+/*
   // RBF-NN -------------------------------------------------------------------
-  VectorXf cen(9); cen << -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0;
-  float sigma = 20;
-  float eta = 10;
-  vec3 dist;
-  MatrixXf VV_dot = MatrixXf::Zero(3,9);
-  VectorXf tmp(9);
-  for (int i=0; i < 3; i++){
-    for (int j=0; i < 9; i++){
-      float z = ew[i] - cen[j];
-      tmp[j] = exp(-z/2.0/sigma/sigma);
-    }
-    VectorXf p = tmp / sqrt(2 * PI) / sigma;
-    dist[i] = VV.row(i) * p;
-    VV_dot.row(i)  = eta * (ew[i] * p) - 0.01 * norm(ew[i]) * VV.row(i);
-  }
+  //VectorXf cen(9); cen << -2.0, -1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0;
+  //float sigma = 20;
+  //float eta = 10;
+  //vec3 dist;
+  //MatrixXf VV_dot = MatrixXf::Zero(3,9);
+  //VectorXf tmp(9);
+  //for (int i=0; i < 3; i++){
+   // for (int j=0; i < 9; i++){
+     // float z = ew[i] - cen[j];
+     // tmp[j] = exp(-z/2.0/sigma/sigma);
+   // }
+    //VectorXf p = tmp / sqrt(2 * PI) / sigma;
+  //  dist[i] = VV.row(i) * p;
+   // VV_dot.row(i)  = eta * (ew[i] * p) - 0.01 * norm(ew[i]) * VV.row(i);
+  //}
+*/
   //
-  vec3 f = - W.cross(J*W);
-  vec3 qw = Wd_dot - f - dist - Kw * ew;
-  vec3 M = th.inverse() * qw;
+  //vec3 ew = W;
+  //vec3 Wd_dot = vec3::Zero(3);
+ // vec3 f = - W.cross(J*W);
+ // vec3 qw = - f - Kw * ew + Wd_dot;
+ // vec3 M = qw;//th.inverse() * qw;
+/*
   // integration
-  vec vv_par;
-  vec VV_dotvec(VV_dot.data(), VV_dot.data() + VV_dot.rows() * VV_dot.cols());
-  vec tmp_vv = ode_RBF.update(VV_dotvec, vv_par, 0.01);
-  VV = Eigen::Map<Matrix<float,3,9>>(tmp_vv.data());
+  //vec vv_par;
+  //vec VV_dotvec(VV_dot.data(), VV_dot.data() + VV_dot.rows() * VV_dot.cols());
+  //vec tmp_vv = ode_RBF.update(VV_dotvec, vv_par, 0.01);
+*/  //VV = Eigen::Map<Matrix<float,3,9>>(tmp_vv.data());
   /////////////////////////////////////////////////////////////////////////////
   // print info ---------------------------------------------------------------
   static int ii = 0;
   ii++;
   if (ii == 100) {
     ii = 0;
-    cout << " Rd\n"       << Rd     << endl;
-    cout << " Rd_dot\n"   << Rd_dot << endl;
-    cout << " Wd_dot\n"   << Wd_dot << endl;
-    cout << " R\n"        << R      << endl;
-    cout << " W\n"        << W      << endl;
+//    cout << " Rd\n"       << Rd     << endl;
+//    cout << " Rd_dot\n"   << Rd_dot << endl;
+//    cout << " Wd_dot\n"   << Wd_dot << endl;
+//    cout << " R\n"        << R      << endl;
+    cout << " eW\n"       << ew      << endl;
     cout << " er\n"       << er     << endl;
     cout << " W\n"        << W      << endl;
   }
 
   // send output data ---------------------------------------------------------
+  //vec3 M = vec3::Zero(3);
   data->du[0] = 2.0;
   data->du[1] = M[0];
   data->du[2] = M[1];
   data->du[3] = M[2];
+
 }
 
 /*****************************************************************************************
@@ -328,8 +341,8 @@ vec diffWdDyn(vec& x, vec& xdot, vec& u, vec& par)
   vec y(x.size());
 
   for (int i=0; i < x.size(); i++){
-    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-    y[i]    =           x[i] +          par[i] * u[i];
+    xdot[i] = - par[i] * x[i] - par[i] * par[i] * u[i];
+    y[i]    =            x[i] +          par[i] * u[i];
   }
   return y;
 }
@@ -341,8 +354,8 @@ vec RdDyn(vec& x, vec& xdot, vec& u, vec& par)
   vec y(x.size());
 
   for (int k=0; k < 9; k++){
-    xdot[k] = - par[k] * (u[k] - x[k]);
-    y[k]    =     x[k];
+    xdot[k] = par[k] * (u[k] - x[k]);
+    y[k]    =   x[k];
   }
   return y;
 }
@@ -355,8 +368,8 @@ vec WdDyn(vec& x, vec& xdot, vec& u, vec& par)
   vec y(x.size());
 
   for (int k=0; k < 3; k++){
-    xdot[k] = - par[k] * (u[k] - x[k]);
-    y[k]    =     x[k];
+    xdot[k] = par[k] * (u[k] - x[k]);
+    y[k]    =   x[k];
   }
   return y;
 }
