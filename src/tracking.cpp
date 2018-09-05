@@ -17,7 +17,11 @@ vec diffRdDyn(vec& x, vec& xdot, vec& u, vec& par);
 vec diffWdDyn(vec& x, vec& xdot, vec& u, vec& par);
 vec RdDyn(vec& x, vec& xdot, vec& u, vec& par);
 vec WdDyn(vec& x, vec& xdot, vec& u, vec& par);
-
+vec3 rotation_control(dataStruct* data);
+vec3 anguler_control(dataStruct* data, vec3 Wc);
+vec3 RBF(vec3 e);
+vec3 sat(const vec3& x, float max, float min);
+mat3 angle2dcm(  const float roll, const float pitch, const float yaw );
 /******************************************************************************
 main: Run main function
 ******************************************************************************/
@@ -117,7 +121,8 @@ int main(int argc, char** argv) {
 control: Perfourm control loop
 ******************************************************************************************/
 void control(dataStruct* data, float dt){
-
+  vec3 Wc = rotation_control(data);
+  vec3 M = anguler_control(data, Wc);
   //    static float ei[3] = {0.0, 0.0, 0.0};
 
   //    float e[3];
@@ -144,7 +149,8 @@ void control(dataStruct* data, float dt){
   //    }
   //    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t %2.2f\t \n",
   //           ang[0], w[0], data->rosnode->_cmd_ang[0], cmd_adj[0],e[0],data->du[1+0],ei[0]);
-  static mat3 Rd = mat3::Identity();
+ /*
+  *  static mat3 Rd = mat3::Identity();
   static vec3 Wd = vec3::Zero(3,1);
   static MatrixXf VV = MatrixXf::Random(3,9);
   vec Rdvec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
@@ -175,10 +181,10 @@ void control(dataStruct* data, float dt){
   mat3 Kr, Kw;
   Kr << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
   Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
-
+*/
   /////////////////////////////////////////////////////////////////////////////
   /// T. Lee Method
-
+/*
   static vec3 thR; thR <<0,0,0;
   // traking error ------------------------------------------------------------
   vec3 er = 0.5 * skewInv(Rd.transpose() * R - R.transpose() * Rd);
@@ -194,6 +200,7 @@ void control(dataStruct* data, float dt){
   vec3 M = - Kr * er - Kw * ew + skew(A) * J * A + J * R.transpose() * Rd * Wd_dot;// - WR * thR;
   //  vec3 thR_dot = 0.1 * WR.transpose()*(er - 0.1 * ew);
   //  thR = thR + thR_dot*0.01;
+  */
   /////////////////////////////////////////////////////////////////////////////
   /*
 /// DSC method
@@ -258,7 +265,7 @@ void control(dataStruct* data, float dt){
 */  //VV = Eigen::Map<Matrix<float,3,9>>(tmp_vv.data());
   /////////////////////////////////////////////////////////////////////////////
   // print info ---------------------------------------------------------------
-  static int ii = 0;
+/*  static int ii = 0;
   ii++;
   if (ii == 100) {
     ii = 0;
@@ -270,6 +277,7 @@ void control(dataStruct* data, float dt){
     cout << " er\n"       << er     << endl;
     cout << " W\n"        << W      << endl;
   }
+  */
 
   // send output data ---------------------------------------------------------
   //vec3 M = vec3::Zero(3);
@@ -372,4 +380,199 @@ vec WdDyn(vec& x, vec& xdot, vec& u, vec& par)
     y[k]    =   x[k];
   }
   return y;
+}
+/*****************************************************************************************
+ @rotation_control: apply rotation control system
+ *****************************************************************************************/
+vec3 rotation_control(dataStruct* data)
+{
+  static bool init = true;
+  static mat3 Rd = mat3::Identity();
+  static ODE ode_Rd(9);
+  if (init)
+  {
+    init = false;
+    vec tmp = vec(Rd.data(), Rd.data() + Rd.rows() * Rd.cols());
+    ode_Rd.setX(tmp);
+  }
+  // parameters
+  mat3 KR;
+  KR << data->angConGain.kr[0], 0, 0, 0, data->angConGain.kr[1], 0, 0, 0, data->angConGain.kr[2];
+  mat3 KF = 50 * mat3::Identity();
+  float maxW = 10;
+  // get info
+  mat3 R, Rc;
+  R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
+      * AngleAxisf(data->enc_angle[1], vec3::UnitY())
+      * AngleAxisf(data->enc_angle[0], vec3::UnitX());
+  Rc =  AngleAxisf(data->rosnode->_cmd_ang[2], vec3::UnitZ())
+      * AngleAxisf(data->rosnode->_cmd_ang[1], vec3::UnitY())
+      * AngleAxisf(data->rosnode->_cmd_ang[0], vec3::UnitX());
+  // Dynamics
+  mat3 Rd_dot = KF * (Rc - Rd);
+  // tracking error
+  mat3 Rt = Rd.transpose() * R;
+  vec3 eR = 0.5 * skewInv((Rt - Rt.transpose()));
+  vec3 C = 0.5 * skewInv(Rd_dot.transpose()*R - R.transpose()*Rd_dot);
+  mat3 A33 = 0.5 * (mat3::Identity() * Rt.trace() - Rt.transpose());
+  // virtual control
+  vec3 Vr = - KR * eR;
+  vec3 Wc = A33.inverse() * (-C + Vr);
+  // saturation
+  vec3 Wc_sat = sat(Wc, maxW, -maxW);
+  MatrixXf A39(3,9);
+  A39 <<      0,       0,       0, -R(0,2), -R(1,2), -R(2,2),  R(0,1),  R(1,1),  R(2,1),
+         R(0,2),  R(1,2),  R(2,2),       0,       0,       0, -R(0,0), -R(1,0), -R(2,0),
+        -R(0,1), -R(1,1), -R(2,1),  R(0,0),  R(1,0),  R(2,0),       0,       0,       0;
+  A39 = 0.5 * A39;
+  VectorXf tmp = A39.colPivHouseholderQr().solve(Vr - (A33 * Wc_sat));
+  Rd_dot -= Map<MatrixXf> (tmp.data(), 3,3);
+  // integration
+  vec empty;
+  vec Rd_dot_vec = vec (Rd_dot.data(), Rd_dot.data() + Rd_dot.rows() * Rd_dot.cols());
+  Rd = mat3 (ode_Rd.update(Rd_dot_vec, empty, 0.01).data());
+/*
+  cout << "R\n"         << R            << endl;
+  cout << "Rc\n"        << Rc           << endl;
+  cout << "KR\n"        << KR           << endl;
+  cout << "Rd\n"        << Rd           << endl;
+  cout << "Rd_dot\n"    << Rd_dot_temp  << endl;
+  cout << "eR\n"        << eR           << endl;
+  cout << "C\n"         << C            << endl;
+  cout << "A33\n"       << A33          << endl;
+  cout << "Vr\n"        << Vr           << endl;
+  cout << "Wc\n"        << Wc           << endl;
+  cout << "Wc_sat\n"    << Wc_sat       << endl;
+  cout << "A39\n"       << A39          << endl;
+  cout << "tmp\n"       << tmp          << endl;
+  cout << "Rd_dot\n"    << Rd_dot       << endl;
+  cout << "Rd_dot\n"    << Rd_dot_vec[0] << "  "
+       << Rd_dot_vec[1] << "  "
+       << Rd_dot_vec[2] << endl;
+*/
+  // control signal
+  return Wc_sat;
+}
+
+/*****************************************************************************************
+ @angle2dcm: convert euler angles to direction cousine matrix
+ *****************************************************************************************/
+mat3 angle2dcm( const float roll, const float pitch, const float yaw )
+{
+  mat3 R;
+  R = AngleAxisf (yaw,   Vector3f::UnitZ())*
+      AngleAxisf (pitch, Vector3f::UnitY())*
+      AngleAxisf (roll,  Vector3f::UnitX());
+  return R;
+}
+/*****************************************************************************************
+ @sat: apply saturation
+ *****************************************************************************************/
+vec3 sat(const vec3& x, float max, float min)
+{
+  vec3 y;
+  for (int i=0; i<3; i++){
+    if (x[i] > max)
+      y[i] = max;
+    else if (x[i] < min)
+      y[i] = min;
+    else
+      y[i] = x[i];
+  }
+  return y;
+}
+/*****************************************************************************************
+ @anguler_control: apply anguler control system
+ *****************************************************************************************/
+vec3 anguler_control(dataStruct* data, vec3 Wc)
+{
+  static bool init = true;
+  static vec3 Wd = vec3::Zero();
+  static ODE ode_Wd(3);
+  if (init)
+  {
+    init = false;
+    vec tmp = vec(Wd.data(), Wd.data() + Wd.rows() * Wd.cols());
+    ode_Wd.setX(tmp);
+  }
+  // system and control parameters --------------------------------------------
+  float Jxy = 0.01, Jz = 0.02;
+  mat3 J; J <<  Jxy,   0,  0, 0, Jxy,  0, 0,   0, Jz;
+  mat3 B; B << 0.01,   0,  0, 0, 0.01,  0, 0,   0, 0.001;
+  B = J.inverse() * B;  mat3 Kw;
+  Kw << data->angConGain.kw[0], 0, 0, 0, data->angConGain.kw[1], 0, 0, 0, data->angConGain.kw[2];
+  float maxM = 1;
+  mat3 KF = 50 * mat3::Identity();
+  // get input data -----------------------------------------------------------
+  vec3 W{data->w[0], data->w[1], data->w[2]};
+  // Dynamics
+  vec3 Wd_dot = KF * (Wc - Wd);
+  // tracking error
+  vec3 eW = W - Wd;
+  vec3 f = - J.inverse() * W.cross(J*W);
+  // virtual control
+  vec3 Vw = - Kw * eW;
+  vec3 dist_est = RBF(eW);
+  vec3 M =  B.inverse() * (-f + Vw + Wd_dot - dist_est);
+  // saturation
+  vec3 M_sat = sat(M, maxM, -maxM);
+  VectorXf tmp = Vw - (B * M_sat - f - dist_est);
+  Wd_dot -= tmp;
+  // integration
+  vec empty;
+  vec Wd_dot_vec = vec (Wd_dot.data(), Wd_dot.data() + Wd_dot.rows() * Wd_dot.cols());
+  Wd = vec3 (ode_Wd.update(Wd_dot_vec, empty, 0.01).data());
+
+/*
+  cout << "W\n"         << W            << endl;
+  cout << "Wc\n"        << Wc           << endl;
+  cout << "KW\n"        << KW           << endl;
+  cout << "Wd\n"        << Wd           << endl;
+  cout << "eW\n"        << eW           << endl;
+  cout << "Vw\n"        << Vw           << endl;
+  cout << "M\n"         << M           << endl;
+  cout << "f\n"         << f            << endl;
+  cout << "B\n"         << B            << endl;
+  cout << "M_sat\n"     << M_sat        << endl;
+  cout << "tmp\n"       << tmp          << endl;
+  cout << "Wd_dot\n"    << Wd_dot       << endl;
+*/
+  // control signal
+  return M_sat;
+}
+
+vec3 RBF(vec3 e){
+  const float _PI = 3.14159;
+  MatrixXf V = MatrixXf::Random(3,9);
+  static bool init = true;
+  static ODE ode_V(3);
+  if (init)
+  {
+    init = false;
+    vec tmp = vec(V.data(), V.data() + V.rows() * V.cols());
+    ode_V.setX(tmp);
+  }
+  // Parameters
+  VectorXf cen(9); cen << -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0;
+  float sigma = 2;
+  float eta = 2;
+  vec3 dist_est(3);
+  MatrixXf V_dot(3,9);
+  VectorXf p(9);
+  for (int i=0; i<3; i++)
+  {
+    for (int j=0; j<9; j++)
+    {
+      float z = (e(i) - cen(j));
+      float tmp = exp( -z / 2 / sigma/sigma);
+      p(j) = tmp / sqrt(2.0 * _PI) / sigma;
+    }
+    dist_est(i) = V.row(i) * p;
+    V_dot.row(i) = eta * (e(i) * p.transpose()) - 0.01 * abs(e(i)) * V.row(i);
+  }
+  // integration
+  vec empty;
+  vec V_dot_vec = vec (V_dot.data(), V_dot.data() + V_dot.rows() * V_dot.cols());
+  V = mat3 (ode_V.update(V_dot_vec, empty, 0.01).data());
+  return dist_est;
 }
