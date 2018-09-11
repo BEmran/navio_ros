@@ -514,7 +514,7 @@ vec3 anguler_control(dataStruct* data, vec3 Wc)
   vec3 f = - J.inverse() * W.cross(J*W);
   // virtual control
   vec3 Vw = - Kw * eW;
-  vec3 dist_est = RBF(eW);
+  vec3 dist_est = vec3::Zero();//RBF(eW);
   vec3 M =  B.inverse() * (-f + Vw + Wd_dot - dist_est);
   // saturation
   vec3 M_sat = sat(M, maxM, -maxM);
