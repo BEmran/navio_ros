@@ -19,6 +19,7 @@ vec RdDyn(vec& x, vec& xdot, vec& u, vec& par);
 vec WdDyn(vec& x, vec& xdot, vec& u, vec& par);
 vec3 rotation_control(dataStruct* data);
 vec3 anguler_control(dataStruct* data, vec3 Wc);
+vec3 motor(vec3 M);
 vec3 RBF(vec3 e);
 vec3 sat(const vec3& x, float max, float min);
 mat3 angle2dcm(  const float roll, const float pitch, const float yaw );
@@ -123,6 +124,7 @@ control: Perfourm control loop
 void control(dataStruct* data, float dt){
   vec3 Wc = rotation_control(data);
   vec3 M = anguler_control(data, Wc);
+  M = motor(M);
   //    static float ei[3] = {0.0, 0.0, 0.0};
 
   //    float e[3];
@@ -577,4 +579,46 @@ vec3 RBF(vec3 e){
   vec V_dot_vec = vec (V_dot.data(), V_dot.data() + V_dot.rows() * V_dot.cols());
   V = mat3 (ode_V.update(V_dot_vec, empty, 0.01).data());
   return dist_est;
+}
+
+  vec3 motor(vec3 Oc){
+  vec3 Od = vec3::Zero(3);
+  vec3 O = vec3::Zero(3);
+  static bool init = true;
+  static ODE ode_Motor(3);
+  static ODE ode_MotorControl(3);
+  if (init)
+  {
+    init = false;
+    vec tmpOd = vec(Od.data(), Od.data() + Od.rows() * Od.cols());
+    ode_MotorControl.setX(tmpOd);
+    vec tmpO = vec(O.data(), O.data() + O.rows() * O.cols());
+    ode_Motor.setX(tmpO);
+  }
+  // Parameters
+  float tau = 18.8;
+  float maxM = 1;
+  float Kw = 10;
+  mat3 KF = 50 * mat3::Identity();
+  // Dynamics
+  vec3 Od_dot = KF * (Oc - Od);
+  // tracking error
+  vec3 eO = O - Od;
+  // virtual control
+  vec3 Vw = - Kw * eO;
+  vec3 M =  (Vw + Od_dot) / tau + O;
+  // saturation
+  vec3 M_sat = sat(M, maxM, -maxM);
+  VectorXf tmp = Vw - (tau * M_sat);
+  Od_dot -= tmp;
+  // integration
+  vec empty;
+  vec Od_dot_vec = vec (Od_dot.data(), Od_dot.data() + Od_dot.rows() * Od_dot.cols());
+  M = vec3 (ode_MotorControl.update(Od_dot_vec, empty, 0.01).data());
+
+  vec3 O_dot = tau * (M - O);
+  vec O_dot_vec = vec (O_dot.data(), O_dot.data() + O_dot.rows() * O_dot.cols());
+  ode_Motor.update(O_dot_vec, empty, 0.01);
+
+  return M;
 }
