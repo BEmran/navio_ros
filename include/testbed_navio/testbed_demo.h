@@ -57,7 +57,7 @@ struct dataStruct {
     float rpy[3];
     float quat[4];
     float du_max[4], du_min[4]; // maximum and minimum du values
-
+    float info[5];              // extra information to be recorded
     vec w;
     ODE wSys;
 
@@ -140,15 +140,6 @@ void *controlThread(void *data) {
         // Send data to motor
         du2motor(my_data->pwm, my_data->du, my_data->pwm_offset, my_data->du_min, my_data->du_max);
 
-        // Update record values
-        my_data->record[16] = my_data->du[0];
-        my_data->record[17] = my_data->du[1];
-        my_data->record[18] = my_data->du[2];
-        my_data->record[19] = my_data->du[3];
-
-        // Record data in a file
-        //printRecord(my_data->file, my_data->record);
-
         // Display info for user every 5 second
         dtsumm += dt;
         if (dtsumm > 5.0) {
@@ -213,6 +204,7 @@ void *sensorsThread(void *data) {
         vec p{50,50,50};
         my_data->w = my_data->wSys.update(enc_angle_tmp, p, 0.005);
 
+        // Update record values
         my_data->record[1] = my_data->sensors->imu.ax;
         my_data->record[2] = my_data->sensors->imu.ay;
         my_data->record[3] = my_data->sensors->imu.az;
@@ -228,7 +220,15 @@ void *sensorsThread(void *data) {
         my_data->record[13] = my_data->rpy[0];
         my_data->record[14] = my_data->rpy[1];
         my_data->record[15] = my_data->rpy[2];
-
+        my_data->record[16] = my_data->du[0];
+        my_data->record[17] = my_data->du[1];
+        my_data->record[18] = my_data->du[2];
+        my_data->record[19] = my_data->du[3];
+        my_data->record[20] = my_data->info[0];
+        my_data->record[21] = my_data->info[1];
+        my_data->record[22] = my_data->info[2];
+        my_data->record[23] = my_data->info[3];
+        my_data->record[24] = my_data->info[4];
         // Record data in a file
         printRecord(my_data->file, my_data->record);
 

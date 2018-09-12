@@ -58,8 +58,9 @@ add_executable(tracking src/tracking.cpp)
 target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME}
 -lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
 
-#add_executable(testbed_basic_tracking src/testbed_basic_tracking.cpp)
-#target_link_libraries(testbed_basic_tracking ${catkin_LIBRARIES} ${PROJECT_NAME})
+add_executable(ident src/ident.cpp)
+target_link_libraries(ident ${catkin_LIBRARIES} ${PROJECT_NAME}
+-lphidget22 ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio/libnavio.a)
 
 #add_executable(testbed_basic_adaptive src/testbed_basic_adaptive.cpp)
 #target_link_libraries(testbed_basic_adaptive ${catkin_LIBRARIES} ${PROJECT_NAME})
