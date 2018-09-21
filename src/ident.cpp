@@ -3,7 +3,7 @@
  * Author: Bara Emran
  * Created on March 14, 2018
  */
-#include "testbed_navio/testbed_demo.h"
+#include "testbed_navio/testbed.h"
 /******************************************************************************
 main: Run main function
 ******************************************************************************/
@@ -112,6 +112,6 @@ void control(dataStruct* data, float dt){
     data->du[i] = data->rosnode->_cmd_du[i];
   }
   data->du[1] = cmd;
-  my_data->info[0] = cmd;
+  data->info[0] = cmd;
   time += 0.02;
 }

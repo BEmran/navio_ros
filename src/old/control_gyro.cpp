@@ -3,7 +3,13 @@
  * Author: Bara Emran
  * Created on September 7, 2017, 1:11 PM
  */
-#include "testbed_navio/testbed_full.h"
+#include "testbed_navio/testbed_full_old.h"
+#include <iostream>
+#include <fstream>
+using namespace std;
+ofstream myfile;
+char buffer[1024];
+float adaptive(dataStruct* data, float cmd, float dt);
 
 /*****************************************************************************************
 main: Run main function
@@ -12,6 +18,7 @@ int main(int argc, char** argv) {
     //----------------------------------------- Welcome msg -------------------------------------
     printf("Start Program...\n");
     signal(SIGINT, ctrlCHandler);
+    myfile.open ("data.txt");
 
     //------------------------------------- Define main variables --------------------------------
     struct dataStruct data;
@@ -26,7 +33,8 @@ int main(int argc, char** argv) {
     data.pwm_offset[3] = 0;
     data.wSys = DynSys(3, *wdotDyn);
     data.w = data.wSys.getY();
-
+    data.refSys = DynSys(2, *refdotDyn);
+    data.ref = data.refSys.getY();
     struct tcpStruct tcp;
     tcp.portNum = 1500;
     //----------------------------------------- Start threads ---------------------------------------
@@ -64,7 +72,7 @@ int main(int argc, char** argv) {
     pthread_cancel(_Thread_Control);
     pthread_cancel(_Thread_RosNode);
     printf("Close program\n");
-
+    myfile.close();
     return 0;
 }
 
@@ -103,5 +111,97 @@ void control(dataStruct* data, float dt){
         ei[i] += e[i] * dt;
     }
     // Send control signal
-    data->du[3] = 2.0;
+    data->du[3] =  2.0;
+    data->du[0] = adaptive(data,cmd_adj[0], dt);
+
+}
+float adaptive(dataStruct* data, float cmd, float dt){
+    // States
+    static float b_est = 1, a_est[2] = {15.0,1.2};
+    static float W[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static float W_dot_old[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static float dtsum = 0;
+    static float si = 0;
+
+    // Parameters
+    float bLimit = 0.1;
+    float L = 2.0, K = 3.0;
+    float a[2] = {11.3225,4.0};
+    float gama = 10.0 , eta = 10.0;
+
+    // Reference systems dynamic equations
+    float vr = -a[0] * data->ref[0] - a[1] * data->ref[1] + a[0] * cmd;
+
+    // Tracking Error
+    float e[2];
+    e[0] = data->enc[0] - data->ref[0];
+    e[1] = data->w[0] - data->ref[1];
+    e[0] = sat(e[0],0.001,-0.001);
+    e[1] = sat(e[1],0.01,-0.01);
+    float s = e[1] + L * e[0];
+
+    // Adaptive Neural Network
+    int node = 5, b = 1;
+    float c[5] =  {-0.01,-0.05,0.0,0.05,0.01};
+    float h, d_est = 0, W_dot;
+    for (int j = 0; j < node; j++){
+        //printf("e=%+2.4f\t c=%+2.4f\t pow=%+2.4f\t ff=%+2.4f\t h=%+2.4f\n",e[0],c[j],pow(abs(e[0] - c[j]), 2),- pow(abs(e[0] - c[j]), 2) / ( 2.0 * 0.1),h);
+        h = exp( - pow(abs(e[0] - c[j]), 2) / ( 2.0 * 0.1));
+        d_est += W[j]* h;
+        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j]);
+        W[j] += (W_dot + W_dot_old[j])/2.0 * dt;
+        W_dot_old[j] = W_dot;
+    }
+//    int k = 5;
+//    for (int j = 0; j < node; j++){
+//        h = exp( - pow(abs(data->enc[0] - c[j]), 2) / ( 2.0 * b * b));
+//        d_est += W[j+k]* h;
+//        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+//        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+//        W_dot_old[j+k] = W_dot;
+//    }
+//    k = 10;
+//    for (int j = 0; j < node; j++){
+//        h = exp( - pow(abs(data->w[0] - c[j]), 2) / ( 2.0 * b * b));
+//       d_est += W[j+k]* h;
+//        W_dot = gama * (e[0] * h - 0.1 * abs(e[0]) * W[j+k]);
+//        W[j+k] += (W_dot + W_dot_old[j+k])/2.0 * dt;
+//        W_dot_old[j+k] = W_dot;
+//    }
+
+    //d_est += -a_est[0] * data->enc[0] - a_est[1] * data->w[0];
+    d_est = sat(d_est,10,-10);
+
+    // Control Signal
+    float v = - K * s - L * e[1] + vr + 1.0*si;
+    si += s * dt;
+    float u = ( - d_est + v ) / b_est;
+    u = sat(u,1,-1);
+    float vh = v - d_est - u * b_est;
+
+    // Adaptive Law
+    a_est[0]+= s * data->enc[0] / eta * dt;
+    a_est[1]+= s * data->w[0] / eta * dt;
+    float b_est_dot = s * u / eta;
+    if (b_est_dot < 0 && b_est < bLimit){
+            b_est_dot = 1 / eta;
+    }
+    b_est += b_est_dot * dt;
+
+    // Output
+    float ref_dot[1]= {vr - vh};
+    data->refSys.update(ref_dot, 0.0, dt);
+
+    sprintf(buffer,"%f,%f,%f,%f,%f,%f,%f,%f\n",dt,e[0],cmd,data->enc[0],data->ref[0],u,d_est,b_est);
+    myfile << buffer;
+
+    static int ii = 0;
+    dtsum += dt;
+    if (dtsum > 0.2){
+        dtsum = 0;
+        printf("%d: e = %+2.3f\t s = %+2.3f\t yr = %+2.3f\t d_est = %+2.3f\t b_est = %+2.3f\n",ii++,
+        (float) e[0], (float) s, (float) data->ref[0], (float) d_est, (float) b_est);
+    }
+
+    return u;
 }

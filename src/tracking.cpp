@@ -3,7 +3,7 @@
  * Author: Bara Emran
  * Created on March 14, 2018
  */
-#include "testbed_navio/testbed_demo.h"
+#include "testbed_navio/testbed.h"
 #include <eigen3/Eigen/Core>
 ///#include <eigen3/Eigen/Eigen>
 #include <eigen3/Eigen/Geometry>

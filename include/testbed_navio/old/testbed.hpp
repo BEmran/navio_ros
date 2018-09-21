@@ -489,6 +489,3 @@ vec diffDyn(vec& x, vec& xdot, vec& u, vec& par)
     return y;
 }
 #endif // TESTBED
-
-
-
