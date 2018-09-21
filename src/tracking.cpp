@@ -286,7 +286,7 @@ void control(dataStruct* data, float dt){
   data->du[0] = 1.5;
   data->du[1] = M[0];
   data->du[2] = M[1];
-  data->du[3] = M[2];
+  data->du[3] = M[2]*0;
 
 }
 
@@ -404,10 +404,10 @@ vec3 rotation_control(dataStruct* data)
   float maxW = 1;
   // get info
   mat3 R, Rc;
-  R =  AngleAxisf(data->enc_angle[2], vec3::UnitZ())
+  R =  AngleAxisf(data->enc_angle[2]*0, vec3::UnitZ())
       * AngleAxisf(data->enc_angle[1], vec3::UnitY())
       * AngleAxisf(data->enc_angle[0], vec3::UnitX());
-  Rc =  AngleAxisf(data->rosnode->_cmd_ang[2], vec3::UnitZ())
+  Rc =  AngleAxisf(data->rosnode->_cmd_ang[2]*0, vec3::UnitZ())
       * AngleAxisf(data->rosnode->_cmd_ang[1], vec3::UnitY())
       * AngleAxisf(data->rosnode->_cmd_ang[0], vec3::UnitX());
   // Dynamics
@@ -508,7 +508,7 @@ vec3 anguler_control(dataStruct* data, vec3 Wc)
   float maxM = 0.2;
   mat3 KF = 50 * mat3::Identity();
   // get input data -----------------------------------------------------------
-  vec3 W{data->w[0], data->w[1], data->w[2]};
+  vec3 W{data->w[0], data->w[1], data->w[2]*0};
   // Dynamics
   vec3 Wd_dot = KF * (Wc - Wd);
   // tracking error
@@ -598,14 +598,14 @@ vec3 RBF(vec3 e){
   // Parameters
   float tau = 18.8;
   float maxM = 1;
-  float Kw = 10;
+  float Ko = 1;
   mat3 KF = 50 * mat3::Identity();
   // Dynamics
   vec3 Od_dot = KF * (Oc - Od);
   // tracking error
   vec3 eO = O - Od;
   // virtual control
-  vec3 Vw = - Kw * eO;
+  vec3 Vw = -Ko * eO;
   vec3 M =  (Vw + Od_dot) / tau + O;
   // saturation
   vec3 M_sat = sat(M, maxM, -maxM);

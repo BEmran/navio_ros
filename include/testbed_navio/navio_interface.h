@@ -15,6 +15,7 @@ Header files
 #include "lib/Navio/Common/Util.h"  // Navio Utility
 #include "lib/Navio/Navio2/PWM.h"   // Navio PWM output
 #include "cmath"
+#include <iostream>
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
@@ -30,7 +31,7 @@ Global variables
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
-void initializePWM(PWM* pwm);
+void initializePWM(PWM* pwm, bool tune);
 void du2motor(PWM* pwm, float du[4], float offset[4], float du_min[4], float du_max[4]);
 void setPWMDuty(PWM* pwm, float uPWM[4]);
 

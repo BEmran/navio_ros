@@ -95,6 +95,7 @@ int main(int argc, char** argv) {
 
   // Exit procedure ---------------------------------------------------------
   ctrlCHandler(0);
+  fclose(data.file);
   printf("Close program\n");
   return 0;
 }
@@ -103,15 +104,30 @@ int main(int argc, char** argv) {
 control: Perfourm control loop
 ******************************************************************************************/
 void control(dataStruct* data, float dt){
-  static float cmd = -0.1;
-  static float time = 0;
-  if (int(time / 5) == 0){
+  static float cmd = -0.05;
+  static int time = 0;
+  static int i = 0;
+  if (time == 500){
+      time = 0;
+      i += 1;
       cmd = -cmd;
+      printf("change command for %f\n", cmd);
   }
+
+  if (i > 10){
+      cmd *= 1.5;
+      i = 0;
+  }
+
   for (int i = 0; i < 4; i++){
     data->du[i] = data->rosnode->_cmd_du[i];
   }
   data->du[1] = cmd;
-  my_data->info[0] = cmd;
-  time += 0.02;
+  data->info[0] = cmd;
+  data->info[1] = time;
+  data->info[2] = data->rosnode->_cmd_du[1];
+  data->info[3] = i;
+  data->info[4] = 0;
+
+  time += 1;
 }

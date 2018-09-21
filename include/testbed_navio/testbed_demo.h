@@ -110,7 +110,7 @@ void *controlThread(void *data) {
     float dt, dtsumm = 0;
 
     // Initialize PWM
-    initializePWM(my_data->pwm);
+    initializePWM(my_data->pwm, false);
     my_data->du[0] = 0.0;
     my_data->du[1] = 0.0;
     my_data->du[2] = 0.0;
