@@ -35,6 +35,9 @@ int main(int argc, char** argv) {
   ctrlCHandler(0);
   printf("Close program\n");
   return 0;
+  pthread_cancel(_Thread_Sensors);
+  //pthread_cancel(_Thread_RosNode);
+  pthread_cancel(_Thread_Control);
 }
 
 /**************************************************************************************************

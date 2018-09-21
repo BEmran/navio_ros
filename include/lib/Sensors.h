@@ -1,9 +1,9 @@
 #ifndef SENSORS_H
 #define SENSORS_H
 
-#include "Common/MPU9250.h"
-#include "Navio2/LSM9DS1.h"
-#include "Common/Util.h"
+#include "Navio/Common/MPU9250.h"
+#include "Navio/Navio2/LSM9DS1.h"
+#include "Navio/Common/Util.h"
 #include <unistd.h>
 #include <string>
 #include <stdio.h>	// file, printf

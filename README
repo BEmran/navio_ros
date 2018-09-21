@@ -1,0 +1,7 @@
+Install phidget library
+check: https://www.phidgets.com/docs/OS_-_Linux#Quick_Downloads
+1- $ sudo apt-get install libusb-1.0-0-dev
+2- download 
+3- $ ./configure
+4- $ make check
+5- $ sudo make install

@@ -8,7 +8,7 @@
 /*****************************************************************************************
  initializePWM: Initialize PWM object used in Navio2 board
 *****************************************************************************************/
-void initializePWM(PWM *pwm, bool tune) {
+void initializePWM(PWM *pwm) {
     // initialize pwm channels
     pwm->init(_MOTOR1);
     pwm->init(_MOTOR2);
@@ -29,18 +29,6 @@ void initializePWM(PWM *pwm, bool tune) {
     pwm->enable(_MOTOR2);
     pwm->enable(_MOTOR3);
     pwm->enable(_MOTOR4);
-    if (tune){
-      float high[4] = {1.0, 1.0, 1.0, 1.0};
-      float low[4] = {0.0, 0.0, 0.0, 0.0};
-      setPWMDuty(pwm, high);
-      int x = 0;
-      while (x == 0) {
-          printf("Enter 1 to finish calibrate\n");
-          std::cin >> x;
-          sleep(1);
-      }
-      setPWMDuty(pwm, low);
-    }
 }
 
 /**************************************************************************************************
