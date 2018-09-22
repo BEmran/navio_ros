@@ -8,7 +8,7 @@
 /*****************************************************************************************
  initializePWM: Initialize PWM object used in Navio2 board
 *****************************************************************************************/
-void initializePWM(PWM *pwm) {
+void initializePWM(PWM *pwm, float init_val) {
     // initialize pwm channels
     pwm->init(_MOTOR1);
     pwm->init(_MOTOR2);
@@ -20,10 +20,10 @@ void initializePWM(PWM *pwm) {
     pwm->set_period(_MOTOR3, _FREQ);
     pwm->set_period(_MOTOR4, _FREQ);
     // set initiale duty cycle to minimum == motor off
-    pwm->set_duty_cycle(_MOTOR1, _SERVO_MIN);
-    pwm->set_duty_cycle(_MOTOR2, _SERVO_MIN);
-    pwm->set_duty_cycle(_MOTOR3, _SERVO_MIN);
-    pwm->set_duty_cycle(_MOTOR4, _SERVO_MIN);
+    pwm->set_duty_cycle(_MOTOR1, init_val);
+    pwm->set_duty_cycle(_MOTOR2, init_val);
+    pwm->set_duty_cycle(_MOTOR3, init_val);
+    pwm->set_duty_cycle(_MOTOR4, init_val);
     // enable pwm channels
     pwm->enable(_MOTOR1);
     pwm->enable(_MOTOR2);
@@ -57,19 +57,41 @@ void du2motor(PWM* pwm, float du[4], float offset[4], float du_min[4], float du_
  setPWMADuty: send PWM signal to motor
 *****************************************************************************************/
 void setPWMDuty(PWM* pwm, float uPWM[4]) {
+    //std::cout << "before: " << uPWM[0] << std::endl;
     // add minmum PWM value and apply saturation for PWM
-    uPWM[0] = sat(uPWM[0] + _SERVO_MIN, _SERVO_MIN, _SERVO_MAX);
-    uPWM[1] = sat(uPWM[1] + _SERVO_MIN, _SERVO_MIN, _SERVO_MAX);
-    uPWM[2] = sat(uPWM[2] + _SERVO_MIN, _SERVO_MIN, _SERVO_MAX);
-    uPWM[3] = sat(uPWM[3] + _SERVO_MIN, _SERVO_MIN, _SERVO_MAX);
+    float uPWM0 = sat(uPWM[0]*_SERVO_SCALE0 + _SERVO_MIN + _SERVO_OFFSET0, _SERVO_MIN, _SERVO_MAX);
+    float uPWM1 = sat(uPWM[1]*_SERVO_SCALE1 + _SERVO_MIN + _SERVO_OFFSET1, _SERVO_MIN, _SERVO_MAX);
+    float uPWM2 = sat(uPWM[2]*_SERVO_SCALE2 + _SERVO_MIN + _SERVO_OFFSET2, _SERVO_MIN, _SERVO_MAX);
+    float uPWM3 = sat(uPWM[3]*_SERVO_SCALE3 + _SERVO_MIN + _SERVO_OFFSET3, _SERVO_MIN, _SERVO_MAX);
 
     // set PWM duty
-    pwm->set_duty_cycle(_MOTOR1, uPWM[0]);
-    pwm->set_duty_cycle(_MOTOR2, uPWM[1]);
-    pwm->set_duty_cycle(_MOTOR3, uPWM[2]);
-    pwm->set_duty_cycle(_MOTOR4, uPWM[3]);
+    //std::cout << "after: " << uPWM[0] << std::endl;
+    pwm->set_duty_cycle(_MOTOR1, uPWM0);
+    pwm->set_duty_cycle(_MOTOR2, uPWM1);
+    pwm->set_duty_cycle(_MOTOR3, uPWM2);
+    pwm->set_duty_cycle(_MOTOR4, uPWM3);
 }
 
+/*****************************************************************************************
+ setFullPWM: send maximum PWM signals to motor
+*****************************************************************************************/
+void setFullPWM(PWM* pwm) {
+    // set PWM duty
+    pwm->set_duty_cycle(_MOTOR1, _SERVO_MAX);
+    pwm->set_duty_cycle(_MOTOR2, _SERVO_MAX);
+    pwm->set_duty_cycle(_MOTOR3, _SERVO_MAX);
+    pwm->set_duty_cycle(_MOTOR4, _SERVO_MAX);
+}
+/*****************************************************************************************
+ setOffPWM: send minimum PWM signals to motor
+*****************************************************************************************/
+void setOffPWM(PWM* pwm) {
+    // set PWM duty
+    pwm->set_duty_cycle(_MOTOR1, _SERVO_MIN);
+    pwm->set_duty_cycle(_MOTOR2, _SERVO_MIN);
+    pwm->set_duty_cycle(_MOTOR3, _SERVO_MIN);
+    pwm->set_duty_cycle(_MOTOR4, _SERVO_MIN);
+}
 /*****************************************************************************************
  sat: apply saturation
 *****************************************************************************************/
