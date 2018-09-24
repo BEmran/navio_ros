@@ -63,3 +63,6 @@ target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 lib
 
 add_executable(ident src/ident.cpp)
 target_link_libraries(ident ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+
+add_executable(sensors_calibrartions src/sensors_calibrartions.cpp)
+target_link_libraries(sensors_calibrartions ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)

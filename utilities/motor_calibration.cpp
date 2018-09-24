@@ -3,7 +3,6 @@
 #include <iostream>
 #include <signal.h>                         // signal ctrl+c
 
-
 using namespace std;
 pthread_t _Thread_Control;
 bool _CloseRequested = false;

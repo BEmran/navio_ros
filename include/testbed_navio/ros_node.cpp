@@ -22,9 +22,9 @@ RosNode::RosNode(ros::NodeHandle nh ,std::string name){
   _sub_ang = _nh.subscribe("testbed/cmd/angle", _queue_size, &RosNode::cmdAngCallback, this);
   _sub_du  = _nh.subscribe("testbed/cmd/du"   , _queue_size, &RosNode::cmdDuCallback , this);
 
-  _cmd_ang [0] =0.0;
-  _cmd_ang [1] =0.0;
-  _cmd_ang [2] =0.0;
+  _cmd_ang [0] = 0.0;
+  _cmd_ang [1] = 0.0;
+  _cmd_ang [2] = 0.0;
   _cmd_du[0] = 0.0;
   _cmd_du[1] = 0.0;
   _cmd_du[2] = 0.0;

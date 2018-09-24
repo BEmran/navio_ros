@@ -24,14 +24,16 @@ static void CCONV onDetachHandler(PhidgetHandle h, void *ctx) {
 // error Handler
 //**************************************************************************
 static void CCONV errorHandler(PhidgetHandle h, void *ctx,
-                               Phidget_ErrorEventCode errorCode, const char *errorString) {
+                               Phidget_ErrorEventCode errorCode,
+                               const char *errorString) {
   fprintf(stderr, "Error: %s (%d)\n", errorString, errorCode);
 }
 //**************************************************************************
 // on Position Change Handler
 //**************************************************************************
 static void CCONV onPositionChangeHandler(PhidgetEncoderHandle ch,
-                                          void *ctx, int positionChange, double timeChange,
+                                          void *ctx, int positionChange,
+                                          double timeChange,
                                           int indexTriggered) {
   int* channel = (int*) ctx;
   tmp_counts[*channel] = positionChange;
@@ -52,8 +54,8 @@ Encoder::Encoder(bool x) {
   _count[1] = 0;
   _count[2] = 0;
   _index[0] = 0;
-  _index[1] = 1;
-  _index[2] = 2;
+  _index[1] = 0;
+  _index[2] = 0;
   _reset_index[0] = 0;
   _reset_index[1] = 0;
   _reset_index[2] = 0;
@@ -157,10 +159,8 @@ void Encoder::getCounts(long counts[]) const {
 void Encoder::readAnglesRad(float angle[]) const {
   static float count = 0;
   count = count + 0.1;
-  for (int ch = 0; ch < 3; ++ch) {
-    //angle[ch] = tmp_counts[ch] / MAXCOUNT * 2 * PI;
+  for (int ch = 0; ch < 3; ++ch)
     angle[ch] = _count[ch] / MAXCOUNT * 2 * PI;
-    }
 }
 //**************************************************************************
 // readAnglesDeg
@@ -201,7 +201,7 @@ bool Encoder::setEnable(bool en, int i) {
       _is_enbaled[i] = true;
     } else {
       printf("Encoder on ch:%d is now disabled\n", _channel[i]);
-      _is_enbaled[i] = true;
+      _is_enbaled[i] = false;
     }
     return true;
   } else {
