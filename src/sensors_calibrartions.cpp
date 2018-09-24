@@ -8,8 +8,8 @@ using namespace std;
 int main(int argc, char** argv)
 {
 
-  ros::NodeHandle nh;
   ros::init(argc, argv, "ednoder_node");
+  ros::NodeHandle nh;
   ros::Publisher pub_enc = nh.advertise <geometry_msgs::Vector3Stamped>("encoders", 100);
   ros::Rate loop_rate(100);
   Encoder enc(true);

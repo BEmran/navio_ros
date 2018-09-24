@@ -22,7 +22,7 @@ static void CCONV onPositionChangeHandler(PhidgetEncoderHandle ch,
         int indexTriggered);
 
 namespace {
-    #define MAXCOUNT 10000.0
+    #define MAXCOUNT 40000.0
     #define PI 3.14159
     int64_t tmp_counts[3];
 }
