@@ -5,10 +5,6 @@
 #include "ros/ros.h"
 #include "geometry_msgs/TwistStamped.h"     // du msg
 #include "geometry_msgs/Vector3Stamped.h"   // encoder and RPY msg
-using namespace std;
-pthread_t _Thread_Control;
-bool _CloseRequested = false;
-void ctrlCHandler(int signal);
 /**************************************************************************************************
  *
 **************************************************************************************************/
@@ -16,8 +12,8 @@ class ROSNODE{
 protected:
     int _queue_size;
     ros::NodeHandle _nh;
-    ros::Publisher _pub_ang;    // publish imu encoder message
-    ros::Subscriber _sub_du;    // subscriber to desired duty cycle message from user
+    ros::Publisher _pub_ang;    // publish angle encoder message
+    ros::Subscriber _sub_du;    // subscriber to desired duty cycle
     std::string _name;
 public:
     float _du[4];
@@ -50,6 +46,10 @@ public:
 /**************************************************************************************************
  *
 **************************************************************************************************/
+using namespace std;
+pthread_t _Thread_Control;
+bool _CloseRequested = false;
+void ctrlCHandler(int signal);
 struct dataStruct {
     float cmd[4];
     float ang[3];
@@ -60,13 +60,14 @@ struct dataStruct {
 **************************************************************************************************/
 void* controlThread(void *data)
 {
-    // Initialize mapping data
+    // initialization -----------------------------------------------------------------------------
     struct dataStruct *data_;
     data_ = (struct dataStruct *) data;
-
     PWM *pwm;
     initializePWM(pwm, 0);
     TimeSampling ts(100);
+
+    // Main loop ----------------------------------------------------------------------------------
     float dt, dtsumm = 0;
     while (!_CloseRequested)
     {
@@ -101,24 +102,32 @@ void ctrlCHandler(int signal) {
 **************************************************************************************************/
 int main(int argc, char** argv)
 {
+    // initialization -----------------------------------------------------------------------------
     dataStruct data;
     signal(SIGINT, ctrlCHandler);
     pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
 
+    // Ros node -----------------------------------------------------------------------------------
     ros::init(argc, argv, "control_test");
     ros::NodeHandle nh;
     data.rosnode = new ROSNODE (nh, "control_test");
     ros::Rate loop_rate(400);
     Encoder enc(true);
 
+    // Main loop ----------------------------------------------------------------------------------
     while (ros::ok()){
+        // read encoder and convert it to radian
         enc.updateCounts();
         enc.readAnglesRad(data.ang);
+
+        // publish encoders' angle
         data.rosnode->publishAngMsg(data.ang);
 
         ros::spinOnce();
         loop_rate.sleep();
     }
+
+    // Exit procedure -----------------------------------------------------------------------------
     printf("Close program\n");
     ctrlCHandler(0);
     pthread_cancel(_Thread_Control);

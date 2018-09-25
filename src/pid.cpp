@@ -53,30 +53,50 @@ void pid(float ang[], float du[]){
     ei += e * 0.01;
     float ed = (e - e0) / 0.01;
     e0 = e;
-    float uz = 0.3;
-    float ur = Kp * e + Ki * ei + Kd * ed;
+    float uz = 0.3 * 4;
+    float ur = sat(Kp * e + Ki * ei + Kd * ed, 0.3, -0.3);
     float up = 0;
-    du[0] = uz / 4.0 - up / 2.0;
-    du[1] = uz / 4.0 - ur / 2.0;
-    du[2] = uz / 4.0 + up / 2.0;
-    du[3] = uz / 4.0 + ur / 2.0;
+    du[0] = (uz / 4.0 - up / 2.0) * 0;
+    du[1] = (uz / 4.0 - ur / 2.0) * 1;
+    du[2] = (uz / 4.0 + up / 2.0) * 0;
+    du[3] = (uz / 4.0 + ur / 2.0) * 1;
+}
+/**************************************************************************************************
+ *
+**************************************************************************************************/
+float sat(float x, float max, float min){
+    float y;
+    if (x >= max)
+        y = max;
+    else if (x <= min)
+        y = min;
+    else
+        y = x;
+    return y;
 }
 /**************************************************************************************************
  *
 **************************************************************************************************/
 int main(int argc, char** argv)
 {
+    // Ros initialization -------------------------------------------------------------------------
     ros::init(argc, argv, "pid");
     ros::NodeHandle nh;
     ROSNODE rosnode (nh, "pid");
     ros::Rate loop_rate(100);
+
+    // Main loop ----------------------------------------------------------------------------------
     float du[4];
     while (ros::ok()){
+        // calculate pid values
         pid(rosnode._ang, du);
+        // publish du values
         rosnode.publishDuMsg(du);
+        // spin
         ros::spinOnce();
         loop_rate.sleep();
     }
+    // Exit procedure -----------------------------------------------------------------------------
     return(0);
 }
 
