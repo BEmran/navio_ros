@@ -66,3 +66,8 @@ target_link_libraries(ident ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnav
 
 add_executable(sensors_calibrartions src/sensors_calibrartions.cpp)
 target_link_libraries(sensors_calibrartions ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+
+add_executable(pid src/pid.cpp)
+target_link_libraries(pid ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+add_executable(control_test src/control_test.cpp)
+target_link_libraries(control_test ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
