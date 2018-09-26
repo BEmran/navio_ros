@@ -31,10 +31,10 @@ Global variables
 #define _SERVO_OFFSET1 0.15
 #define _SERVO_OFFSET2 0.15
 #define _SERVO_OFFSET3 0.15
-#define _SERVO_SCALE0 1*1.03
-#define _SERVO_SCALE1 1*1
-#define _SERVO_SCALE2 1*0.98
-#define _SERVO_SCALE3 1*1
+#define _SERVO_SCALE0 1.03
+#define _SERVO_SCALE1 1
+#define _SERVO_SCALE2 0.98
+#define _SERVO_SCALE3 1
 
 /*****************************************************************************************
 Functions prototype
