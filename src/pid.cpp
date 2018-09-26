@@ -178,6 +178,7 @@ int main(int argc, char** argv)
         enc.updateCounts();
         enc.readAnglesRad(data.ang);
         // calculate pid values
+        data.rosnode->publishAngMsg(data.ang);
         pid(data.ang, data.rosnode->_cmd, du);
 
         for (int i=0; i<4; i++)
