@@ -53,7 +53,6 @@ bool _CloseRequested = false;
 void ctrlCHandler(int signal);
 struct dataStruct {
     bool is_rosnode_ready;
-    float cmd[4];
     float ang[3];
     ROSNODE *rosnode;
 };
