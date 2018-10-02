@@ -126,8 +126,11 @@ void* controlThread(void *data)
     data_ = (struct dataStruct *) data;
     PWM *pwm;
     initializePWM(pwm, 0);
-    TimeSampling ts(100);
-    data_->r1 = Rotor(1.0/100.0);
+    TimeSampling ts(500);
+    data_->r0 = Rotor(1.0/500.0);
+    data_->r1 = Rotor(1.0/500.0);
+    data_->r2 = Rotor(1.0/500.0);
+    data_->r3 = Rotor(1.0/500.0);
     // Main loop ----------------------------------------------------------------------------------
     while (!data_->is_rosnode_ready);
     float dt, dtsumm = 0;
