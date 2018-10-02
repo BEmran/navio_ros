@@ -113,7 +113,7 @@ struct dataStruct {
     bool is_rosnode_ready;
     float ang[3];
     RosNode *rosnode;
-    Rotor r1;
+    Rotor r0, r1, r2, r3;
 };
 /**************************************************************************************************
  *
@@ -137,12 +137,15 @@ void* controlThread(void *data)
         dt = ts.updateTs();
 
         // rotor control
-        float res = data_->r1.update(data_->rosnode->_du[0]);
-        float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
-        data_->rosnode->publishAngMsg(tmp);
+        float pwm0 = data_->r0.update(data_->rosnode->_du[0]);
+        float pwm1 = data_->r1.update(data_->rosnode->_du[1]);
+        float pwm2 = data_->r2.update(data_->rosnode->_du[2]);
+        float pwm3 = data_->r3.update(data_->rosnode->_du[3]);
+        //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
+        //data_->rosnode->publishAngMsg(tmp);
 
         // Send PWM
-        float r[4] ={res,0,0,0};
+        float r[4] ={pwm0, pwm1, pwm2, pwm3};
         setPWMDuty(pwm, r);
 
         // Display info for user every 5 second
