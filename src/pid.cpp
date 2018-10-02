@@ -20,9 +20,9 @@ private:
   ODE ode;
   float ei;
   float dt;
-  vec x;
-public:
 
+public:
+  vec x;
   Rotor (float Dt){
     dt = Dt;
     ei = 0;
@@ -109,6 +109,7 @@ struct dataStruct {
     bool is_rosnode_ready;
     float ang[3];
     RosNode *rosnode;
+    Rotor r1;
 };
 /**************************************************************************************************
  *
@@ -122,7 +123,7 @@ void* controlThread(void *data)
     PWM *pwm;
     initializePWM(pwm, 0);
     TimeSampling ts(500);
-    Rotor r1(500);
+    data_->r1 = Rotor(500);
     // Main loop ----------------------------------------------------------------------------------
     while (!data_->is_rosnode_ready);
     float dt, dtsumm = 0;
@@ -132,12 +133,13 @@ void* controlThread(void *data)
         dt = ts.updateTs();
 
         // Send PWM
-        float r[4];
-        r[0] = r1.update(data_->rosnode->_du[0]);
-        r[1] = data_->rosnode->_du[1];
-        r[2] = data_->rosnode->_du[2];
-        r[3] = data_->rosnode->_du[3];
+        float r[4] ={0,0,0,0};
         setPWMDuty(pwm, r);
+
+        //
+        float res = data_->r1.update(data_->rosnode->_du[0]);
+        float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
+        data_->rosnode->publishAngMsg(tmp);
 
         // Display info for user every 5 second
         dtsumm += dt;
@@ -186,7 +188,7 @@ int main(int argc, char** argv)
         enc.readAnglesRad(data.ang);
 
         // publish encoders' angle
-        data.rosnode->publishAngMsg(data.ang);
+        //data.rosnode->publishAngMsg(data.ang);
 
         ros::spinOnce();
         loop_rate.sleep();
