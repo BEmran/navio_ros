@@ -11,8 +11,9 @@
 **************************************************************************************************/
 vec dyn(vec& x, vec& xdot, vec& u, vec& par){
   vec y = x;
-  xdot[0] = x[1];
-  xdot[1] = - 300*x[0] - 35*x[1] + 35*u[0];
+  xdot[0] =                x[1];
+  xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
+  //printf("u=%+3.1f x[0]=%+3.1f x[1]=%+3.1f\n",u[0], x[0], x[1]);
   return y;
 }
 class Rotor{
@@ -31,23 +32,26 @@ public:
   }
   Rotor(){}
   ~Rotor(){}
-  float update(float RPMdes){
+  float update(float Wdes){
     // calculate error
-    float e = (RPMdes/10000) - x[0];
+    float RPMe_4 = Wdes * (1.0/10000.0) * (60.0/2.0/3.14);
+    float e = RPMe_4 - x[0];
     // PI conrol with anti windup procedure
-    float Kp = 2.5, Ki = 20.5, Kt = 0.1;
-    float u = Kp * e + ei;
+    float Kp = 2.5, Ki = 20.5, Kt = 1.0/Ki;
+    float u = Kp * e + Ki * ei;
     float usat;
-    if (u > 1000)
-        usat = 1000;
+    if (u > 2.2)
+        usat = 2.2;
     else if (u < 0)
       usat = 0;
     else
       usat = u;
-    ei = ei + e * dt * (Ki + Kt * (-u+usat));
+
+    ei = ei + e * dt * (1 + Kt * (-u+usat));
+
     // PWM signal conditioning
     if (usat > 0)
-      usat = usat * 0.4177 + 0.5;
+      usat = usat * 0.4177 + 0.04252;
     else
       usat = 0;
 
@@ -122,8 +126,8 @@ void* controlThread(void *data)
     data_ = (struct dataStruct *) data;
     PWM *pwm;
     initializePWM(pwm, 0);
-    TimeSampling ts(500);
-    data_->r1 = Rotor(500);
+    TimeSampling ts(100);
+    data_->r1 = Rotor(1.0/100.0);
     // Main loop ----------------------------------------------------------------------------------
     while (!data_->is_rosnode_ready);
     float dt, dtsumm = 0;
@@ -132,14 +136,14 @@ void* controlThread(void *data)
         // calculate sampling time
         dt = ts.updateTs();
 
-        // Send PWM
-        float r[4] ={0,0,0,0};
-        setPWMDuty(pwm, r);
-
-        //
+        // rotor control
         float res = data_->r1.update(data_->rosnode->_du[0]);
         float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
         data_->rosnode->publishAngMsg(tmp);
+
+        // Send PWM
+        float r[4] ={res,0,0,0};
+        setPWMDuty(pwm, r);
 
         // Display info for user every 5 second
         dtsumm += dt;
