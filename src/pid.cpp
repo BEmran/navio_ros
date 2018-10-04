@@ -187,7 +187,7 @@ void* controlThread(void *data)
     data_->rotors[i] = Rotor(1.0/freq);
   for (int i=0; i<3 ; i++){
     data_->Wpid[i] = PID(1.0/freq);
-    data_->Wpid[i].setGains(10.0, 2, 1.5, 0);
+    data_->Wpid[i].setGains(400.0, 600.0, 2, 0);
   }
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
@@ -218,7 +218,7 @@ void* controlThread(void *data)
       // rotor control
       float r[4];
       for (int i=0; i<4 ; i++)
-        r[i] = data_->rotors[i].update(uPWM[0], 1.0/freq);
+        r[i] = data_->rotors[i].update(uPWM[i], 1.0/freq);
       //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
       //data_->rosnode->publishAngMsg(tmp);
 
@@ -254,30 +254,36 @@ void* sensorsThread(void *data)
   data_ = (struct dataStruct *) data;
   PWM *pwm;
   initializePWM(pwm, 0);
-  float freq = 800;
+  float freq = 100;
   TimeSampling ts(freq);
   Encoder enc(true);
   for(int i=0; i<3; i++)
     data_->Wdyn[i] = ODE(1, dynFilter);
   // Main loop ----------------------------------------------------------------------------------
-  float dt, dtsumm = 0;
+  float dt, dtsumm = 0, dtsumEnc = 0;
   while (!_CloseRequested)
   {
     // calculate sampling time
     dt = ts.updateTs();
 
     // read encoder and convert it to radian
-    enc.updateCounts();
-    enc.readAnglesRad(data_->ang);
+    //enc.updateCounts();
+    //enc.readAnglesRad(data_->ang);
 
     //
     vec empty;
     for(int i=0; i<3; i++){
-      vec ang_vec = {data_->ang[i]};
+      vec ang_vec = {-data_->ang[i]};
       vec tmp = data_->Wdyn[i].update(ang_vec,empty,1.0/freq);
       data_->W[i] = tmp[0];
     }
-
+    dtsumEnc += dt;
+    if (dtsumEnc > 0.01){
+      dtsumEnc = 0;
+      // read encoder and convert it to radian
+      enc.updateCounts();
+      enc.readAnglesRad(data_->ang);
+    }
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5) {
