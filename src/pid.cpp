@@ -158,6 +158,7 @@ public:
 **************************************************************************************************/
 using namespace std;
 pthread_t _Thread_Control;
+pthread_t _Thread_Sensors;
 bool _CloseRequested = false;
 void ctrlCHandler(int signal);
 struct dataStruct {
@@ -245,6 +246,53 @@ void* controlThread(void *data)
 /**************************************************************************************************
  *
 **************************************************************************************************/
+void* sensorsThread(void *data)
+{
+  // initialization -----------------------------------------------------------------------------
+  printf("Start Sensors thread\n");
+  struct dataStruct *data_;
+  data_ = (struct dataStruct *) data;
+  PWM *pwm;
+  initializePWM(pwm, 0);
+  float freq = 800;
+  TimeSampling ts(freq);
+  Encoder enc(true);
+  for(int i=0; i<3; i++)
+    data_->Wdyn[i] = ODE(1, dynFilter);
+  // Main loop ----------------------------------------------------------------------------------
+  float dt, dtsumm = 0;
+  while (!_CloseRequested)
+  {
+    // calculate sampling time
+    dt = ts.updateTs();
+
+    // read encoder and convert it to radian
+    enc.updateCounts();
+    enc.readAnglesRad(data_->ang);
+
+    //
+    vec empty;
+    for(int i=0; i<3; i++){
+      vec ang_vec = {data_->ang[i]};
+      vec tmp = data_->Wdyn[i].update(ang_vec,empty,1.0/freq);
+      data_->W[i] = tmp[0];
+    }
+
+    // Display info for user every 5 second
+    dtsumm += dt;
+    if (dtsumm > 5) {
+      dtsumm = 0;
+      printf("Sensor thread: running fine with %4d Hz\n", int(1 / dt));
+    }
+  }
+
+  // Exit procedure -----------------------------------------------------------------------------
+  ctrlCHandler(0);
+  printf("Exit Sensors thread\n");
+  pthread_exit(NULL);
+}/**************************************************************************************************
+ *
+**************************************************************************************************/
 void ctrlCHandler(int signal) {
   _CloseRequested = true;
   printf("Ctrl+c have been detected\n");
@@ -260,17 +308,15 @@ int main(int argc, char** argv)
   data.is_rosnode_ready = false;
   signal(SIGINT, ctrlCHandler);
   pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
+  pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
 
   // Ros node -----------------------------------------------------------------------------------
   printf("initiate ros node\n");
   ros::init(argc, argv, "control_test");
   ros::NodeHandle nh;
   data.rosnode = new RosNode (nh, "control_test");
-  float freq = 100.0;
+  float freq = 50;
   ros::Rate loop_rate(freq);
-  Encoder enc(true);
-  for(int i=0; i<3; i++)
-    data.Wdyn[i] = ODE(1, dynFilter);
   // ----------------------------------------------------------------------------------------------
   int x = 0;
   while (x == 0) {
@@ -281,21 +327,9 @@ int main(int argc, char** argv)
   data.is_rosnode_ready = true;
   // Main loop ----------------------------------------------------------------------------------
   while (ros::ok()){
-    // read encoder and convert it to radian
-    enc.updateCounts();
-    enc.readAnglesRad(data.ang);
-
-    //
-    vec empty;
-    for(int i=0; i<3; i++){
-      vec ang_vec = {data.ang[i]};
-      vec tmp = data.Wdyn[i].update(ang_vec,empty,1.0/freq);
-      data.W[i] = tmp[0];
-    }
     //publish encoders' angle
     data.rosnode->publishAngMsg(data.ang);
     data.rosnode->publishWMsg(data.W);
-
     ros::spinOnce();
     loop_rate.sleep();
   }
@@ -303,6 +337,7 @@ int main(int argc, char** argv)
   // Exit procedure -----------------------------------------------------------------------------
   printf("Close program\n");
   ctrlCHandler(0);
-  //pthread_cancel(_Thread_Control);
+  pthread_cancel(_Thread_Control);
+  pthread_cancel(_Thread_Sensors);
   return(0);
 }
