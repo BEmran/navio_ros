@@ -180,7 +180,7 @@ void* controlThread(void *data)
   data_ = (struct dataStruct *) data;
   PWM *pwm;
   initializePWM(pwm, 0);
-  float freq = 500;
+  float freq = 100;
   TimeSampling ts(freq);
   for (int i=0; i<4 ; i++)
     data_->rotors[i] = Rotor(1.0/freq);
@@ -266,7 +266,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "control_test");
   ros::NodeHandle nh;
   data.rosnode = new RosNode (nh, "control_test");
-  float freq = 800.0;
+  float freq = 100.0;
   ros::Rate loop_rate(freq);
   Encoder enc(true);
   for(int i=0; i<3; i++)
@@ -305,80 +305,4 @@ int main(int argc, char** argv)
   ctrlCHandler(0);
   //pthread_cancel(_Thread_Control);
   return(0);
-}
-
-/**************************************************************************************************
- *
-**************************************************************************************************/
-void pid(float ang[], float des[], float du[]){
-  static float eir = 0.0, eip = 0.0;
-  static float dr = 0.0, dp = 0.0;
-  static float r0 = 0.0, p0 = 0.0;
-
-  float r = -ang[0];
-  float p = -ang[1];
-
-  float Kp = 0.2, Ki = 0.05, Kd = 0.09;
-
-  float er = des[0] - r;
-  float ep = des[1] - p;
-
-  float uz = 0.5 * 4;
-  //float ur = sat(Kp * er + Ki * eir + Kd * dr, 0.4, -0.4);
-  //float up = sat(Kp * ep + Ki * eip + Kd * dp, 0.4, -0.4);
-  float ur = 0;
-  float up = 0;
-
-  du[0] = (uz / 4.0 - up / 2.0) * 1;
-  du[1] = (uz / 4.0 - ur / 2.0) * 1;
-  du[2] = (uz / 4.0 + up / 2.0) * 1;
-  du[3] = (uz / 4.0 + ur / 2.0) * 1;
-
-  eir += er * 0.01;
-  eip += ep * 0.01;
-
-  dr = 0.75 * dr - 50 * r + 50 * r0;
-  dp = 0.75 * dp - 50 * p + 50 * p0;
-  r0 = r;
-  p0 = p;
-}
-/**************************************************************************************************
- *
-**************************************************************************************************/
-void pidW(vec w, float du[], float dt){
-  static float eip = 0.0, eiq = 0.0, eir = 0.0;
-
-  float p = -w[0];
-  float q = -w[1];
-  float r = -w[2];
-
-  float Kp = 10, Ki = 2, Kt= (1+1/Ki);
-
-  float ep = 0 - p;
-  float eq = 0 - q;
-  float er = 0 - r;
-
-  float uz = 400;
-  float up = Kp * ep + Ki * eip;
-  float uq = Kp * eq + Ki * eiq;
-  float ur = Kp * er + Ki * eir;
-  //float up = 0;
-  //float uq = 0;
-  //float ur = 0;
-  float upsat = sat(up,-400,400);
-  float uqsat = sat(uq,-400,400);
-  float ursat = sat(ur,-400,400);
-
-  eip += ep * dt * (Kt * (-up+upsat));
-  eiq += eq * dt * (Kt * (-uq+uqsat));
-  eir += er * dt * (Kt * (-ur+ursat));
-
-  du[0] = (uz / 4.0 - uq / 2.0) * 1;
-  du[1] = (uz / 4.0 - up / 2.0) * 1;
-  du[2] = (uz / 4.0 + uq / 2.0) * 1;
-  du[3] = (uz / 4.0 + up / 2.0) * 1;
-
-  eip += ep * dt;
-  eiq += eq * dt;
-  eir += er * dt;
 }
