@@ -13,8 +13,8 @@ void pidW(vec w, float du[], float dt);
 **************************************************************************************************/
 vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
   vec y(x.size());
-    xdot[0] = - 50.0 * x[0] - 50.0 * 50.0 * u[0];
-    y[0]    =          x[0] +        50.0 * u[0];
+    xdot[0] =        - 50.0 * x[0] +    1 * u[0];
+    y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
   return y;
 }
 /**************************************************************************************************
@@ -266,7 +266,8 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "control_test");
   ros::NodeHandle nh;
   data.rosnode = new RosNode (nh, "control_test");
-  ros::Rate loop_rate(800);
+  float freq = 800.0;
+  ros::Rate loop_rate(freq);
   Encoder enc(true);
   for(int i=0; i<3; i++)
     data.Wdyn[i] = ODE(1, dynFilter);
@@ -288,7 +289,7 @@ int main(int argc, char** argv)
     vec empty;
     for(int i=0; i<3; i++){
       vec ang_vec = {data.ang[i]};
-      vec tmp = data.Wdyn[i].update(ang_vec,empty,1/800);
+      vec tmp = data.Wdyn[i].update(ang_vec,empty,1.0/freq);
       data.W[i] = tmp[0];
     }
     //publish encoders' angle
