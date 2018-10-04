@@ -13,10 +13,8 @@ void pidW(vec w, float du[], float dt);
 **************************************************************************************************/
 vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
   vec y(x.size());
-  for (int i=0; i < x.size(); i++){
-    xdot[i] = - 50.0 * x[i] - 50.0 * 50.0 * u[i];
-    y[i]    =          x[i] +        50.0 * u[i];
-  }
+    xdot[0] = - 50.0 * x[0] - 50.0 * 50.0 * u[0];
+    y[0]    =          x[0] +        50.0 * u[0];
   return y;
 }
 /**************************************************************************************************
@@ -167,8 +165,9 @@ struct dataStruct {
   float ang[3];
   RosNode *rosnode;
   Rotor rotors[4];
-  ODE Wdyn;
-  vec W;
+  PID Wpid[3];
+  ODE Wdyn[3];
+  float W[3];
 };
 /**************************************************************************************************
  *
@@ -185,7 +184,10 @@ void* controlThread(void *data)
   TimeSampling ts(freq);
   for (int i=0; i<4 ; i++)
     data_->rotors[i] = Rotor(1.0/freq);
-
+  for (int i=0; i<3 ; i++){
+    data_->Wpid[i] = PID(1.0/freq);
+    data_->Wpid[i].setGains(10.0, 2, 1.5, 0);
+  }
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
   while (!_CloseRequested)
@@ -194,14 +196,28 @@ void* controlThread(void *data)
     dt = ts.updateTs();
     if (data_->is_rosnode_ready)
     {
-      // pid
-      //float du[4];
-      //pidW(data_->W, du, 1.0/500);
+      float du[4];
+
+      du[0] = data_->rosnode->_du[0];
+      for (int i=0; i<3 ; i++)
+        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0);
+
+      float dz = sat(du[0],    0.0, 2000.0) / 4.0;
+      float dr = sat(du[1], -400.0,  400.0) / 2.0;
+      float dp = sat(du[2], -400.0,  400.0) / 2.0;
+      float dw = sat(du[3], -400.0,  400.0) / 4.0;
+
+      // du to PWM
+      float uPWM[4];
+      uPWM[0] = dz - dp - dw;
+      uPWM[1] = dz - dr + dw;
+      uPWM[2] = dz + dp - dw;
+      uPWM[3] = dz + dr + dw;
 
       // rotor control
       float r[4];
       for (int i=0; i<4 ; i++)
-        r[i] = data_->rotors[i].update(data_->rosnode->_du[0], 1.0/freq);
+        r[i] = data_->rotors[i].update(uPWM[0], 1.0/freq);
       //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
       //data_->rosnode->publishAngMsg(tmp);
 
@@ -252,7 +268,8 @@ int main(int argc, char** argv)
   data.rosnode = new RosNode (nh, "control_test");
   ros::Rate loop_rate(800);
   Encoder enc(true);
-  data.Wdyn = ODE(3, dynFilter);
+  for(int i=0; i<3; i++)
+    data.Wdyn[i] = ODE(1, dynFilter);
   // ----------------------------------------------------------------------------------------------
   int x = 0;
   while (x == 0) {
@@ -268,14 +285,15 @@ int main(int argc, char** argv)
     enc.readAnglesRad(data.ang);
 
     //
-    vec ang_vec = {data.ang[0], data.ang[1], data.ang[2]};
     vec empty;
-    data.W = data.Wdyn.update(ang_vec,empty,1/800);
-
+    for(int i=0; i<3; i++){
+      vec ang_vec = {data.ang[i]};
+      vec tmp = data.Wdyn[i].update(ang_vec,empty,1/800);
+      data.W[i] = tmp[0];
+    }
     //publish encoders' angle
     data.rosnode->publishAngMsg(data.ang);
-    float W[3]= {data.W[0], data.W[1], data.W[2]};
-    data.rosnode->publishWMsg(W);
+    data.rosnode->publishWMsg(data.W);
 
     ros::spinOnce();
     loop_rate.sleep();
