@@ -6,6 +6,7 @@
 #include "ros/ros.h"
 #include "geometry_msgs/Twist.h"     // du msg
 #include "geometry_msgs/Vector3Stamped.h"   // encoder and RPY msg
+
 void pidW(vec w, float du[], float dt);
 /**************************************************************************************************
  *
@@ -25,59 +26,86 @@ vec dyn(vec& x, vec& xdot, vec& u, vec& par){
   vec y = x;
   xdot[0] =                x[1];
   xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
-  //printf("u=%+3.1f x[0]=%+3.1f x[1]=%+3.1f\n",u[0], x[0], x[1]);
   return y;
 }
+/**************************************************************************************************
+ *
+**************************************************************************************************/
+class PID{
+private:
+  float _ei, _e0;
+  float _dt;
+  float _Kp, _Ki, _Kd, _Kt;
+public:
+  PID(){}
+  ~PID(){}
+  PID(float dt){
+    _dt = dt;
+    _ei = 0.0;
+    _e0 = 0.0;
+  }
+  void setGains(float Kp = 1, float Ki = 0, float Kt = 0, float Kd = 0){
+    _Kp = Kp;
+    _Ki = Ki;
+    _Kt = Kt;
+    _Kd = Kd;
+  }
+
+  float update(float x, float xdes, float m, float M){
+    float e = xdes - x;
+    float ed = (e - _e0) / _dt;
+    float u = _Kp * e + _Ki * _ei + _Kd * ed;
+    float usat;
+    if (u >= M)
+      usat = M;
+    else if (u <= m)
+      usat = m;
+    else
+      usat = u;
+
+    _ei += e * _dt * (_Kt * (-u+usat));
+    _e0 = e;
+    return u;
+  }
+  };
 /**************************************************************************************************
  *
 **************************************************************************************************/
 class Rotor{
 private:
   ODE ode;
-  float ei;
-  float dt;
-
+  PID pid;
 public:
   vec x;
-  Rotor (float Dt){
-    dt = Dt;
-    ei = 0;
+  Rotor (float dt){
     ode = ODE(2, dyn);
     x = ode.getX();
+    pid = PID(dt);
+    pid.setGains(2.5, 20.5, 21.5/20.5, 0);
   }
   Rotor(){}
   ~Rotor(){}
-  float update(float Wdes){
-    // calculate error
-    float RPMe_4 = Wdes * (1.0/10000.0) * (60.0/2.0/3.14);
-    float e = RPMe_4 - x[0];
+  float update(float Wdes, float dt){
     // PI conrol with anti windup procedure
-    float Kp = 2.5, Ki = 20.5, Kt = 1.0/Ki;
-    float u = Kp * e + Ki * ei;
+    Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
+
+    // Applay pid control
+    float u = pid.update(x[0], Wdes, 0.0, 2.2);
+
     float usat;
-    if (u > 2.2)
-      usat = 2.2;
-    else if (u < 0)
-      usat = 0;
-    else
-      usat = u;
-
-    ei = ei + e * dt * (1 + Kt * (-u+usat));
-
     // PWM signal conditioning
-    if (usat > 0)
-      usat = usat * 0.4177 + 0.04252;
+    if (u > 0)
+      usat = u * 0.4177 + 0.04252;
     else
       usat = 0;
 
+    // System dynamics
     vec empty;
-    vec input={usat};
+    vec input = {usat};
     x = ode.update(input, empty, dt);
-
     return usat;
   }
 };
-
 /**************************************************************************************************
  *
 **************************************************************************************************/
@@ -138,7 +166,7 @@ struct dataStruct {
   bool is_rosnode_ready;
   float ang[3];
   RosNode *rosnode;
-  Rotor r0, r1, r2, r3;
+  Rotor rotors[4];
   ODE Wdyn;
   vec W;
 };
@@ -153,37 +181,37 @@ void* controlThread(void *data)
   data_ = (struct dataStruct *) data;
   PWM *pwm;
   initializePWM(pwm, 0);
-  TimeSampling ts(500);
-  data_->r0 = Rotor(1.0/500.0);
-  data_->r1 = Rotor(1.0/500.0);
-  data_->r2 = Rotor(1.0/500.0);
-  data_->r3 = Rotor(1.0/500.0);
+  float freq = 500;
+  TimeSampling ts(freq);
+  for (int i=0; i<4 ; i++)
+    data_->rotors[i] = Rotor(1.0/freq);
+
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
   while (!_CloseRequested)
   {
     // calculate sampling time
     dt = ts.updateTs();
-    if (!data_->is_rosnode_ready)
+    if (data_->is_rosnode_ready)
     {
       // pid
-      float du[4];
-      pidW(data_->W, du, 1.0/500);
+      //float du[4];
+      //pidW(data_->W, du, 1.0/500);
 
       // rotor control
-      float pwm0 = data_->r0.update(du[0]);
-      float pwm1 = data_->r1.update(du[1]);
-      float pwm2 = data_->r2.update(du[2]);
-      float pwm3 = data_->r3.update(du[3]);
+      float r[4];
+      for (int i=0; i<4 ; i++)
+        r[i] = data_->rotors[i].update(data_->rosnode->_du[0], 1.0/freq);
       //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
       //data_->rosnode->publishAngMsg(tmp);
 
       // Send PWM
-      float r[4] ={pwm0, pwm1, pwm2, pwm3};
       setPWMDuty(pwm, r);
     }
-    else
-      setOffPWM(pwm);
+    else{
+      float r[4] ={0, 0, 0, 0};
+      setPWMDuty(pwm, r);
+    }
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5) {
