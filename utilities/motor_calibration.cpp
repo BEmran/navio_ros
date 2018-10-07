@@ -23,7 +23,7 @@ void* controlThread(void *data)
   data_ = (struct dataStruct *) data;
 
   PWM *pwm;
-  initializePWM(pwm, 0);
+  initializePWM(pwm);
   data_->cmd = 0;
   while (!_CloseRequested)
   {

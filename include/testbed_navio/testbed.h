@@ -9,41 +9,38 @@
 /**************************************************************************************************
 Header files
 **************************************************************************************************/
-#include <signal.h>                         // signal ctrl+c
-#include <stdio.h>                          // printf
-#include "lib/TimeSampling.h"               // time sampling library
-#include <testbed_navio/ros_node.h>         // ros node class
-#include <testbed_navio/navio_interface.h>  // navio interface pwm, sensors ...
+#include <signal.h>                               // signal ctrl+c
+#include <stdio.h>                                // printf
+#include "lib/TimeSampling.h"                     // time sampling library
+#include <testbed_navio/ros_node.h>               // ros node class
+#include <testbed_navio/navio_interface.h>        // navio interface pwm, sensors ...
 #include "lib/ode.h"
 
 /**************************************************************************************************
 Global variables
 **************************************************************************************************/
-#define _MAINFUN_FREQ   200   // Main thread frequency in Hz
-#define _SENSORS_FREQ   200   // Sensor thread frequency in Hz
-#define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
-#define _CONTROL_FREQ   100   // Control thread frequency in Hz
+#define _SENSORS_FREQ   400                       // Sensors thread frequency in Hz
+#define _ROSNODE_FREQ   100                       // Rosnode thread frequency in Hz
+#define _CONTROL_FREQ   200                       // Control thread frequency in Hz
 
 pthread_t _Thread_Sensors;
-pthread_t _Thread_RosNode;
+pthread_t _Thread_Rosnode;
 pthread_t _Thread_Control;
 
-bool _CloseRequested = false;
+bool _CloseRequested = false;                     // close request for ctrl+c
 using namespace std;
-typedef std::vector<float> vec;
+typedef vector<float> vec;
 /**************************************************************************************************
 Define structures
 **************************************************************************************************/
-struct controlStruct {
+struct controlStruct {                            // getting parameters form rosparm
   std::vector<double> kp;
   std::vector<double> ki;
   std::vector<double> kd;
   std::vector<double> kr;
   std::vector<double> kw;
 };
-
-struct dataStruct {
-  bool is_mainfun_ready;
+struct dataStruct {                               // main data structure
   bool is_control_ready;
   bool is_rosnode_ready;
   bool is_sensors_ready;
@@ -65,7 +62,6 @@ struct dataStruct {
 
   RosNode* rosnode;
   Sensors* sensors;
-  PWM* pwm;
   Encoder* encoder;
   controlStruct angConGain;
 
@@ -88,7 +84,6 @@ vec diffDyn(vec& x, vec& xdot, vec& u, vec& par);
 /**************************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
 **************************************************************************************************/
-
 void ctrlCHandler(int signal) {
   _CloseRequested = true;
   printf("Ctrl+c have been detected\n");
@@ -98,34 +93,29 @@ void ctrlCHandler(int signal) {
 **************************************************************************************************/
 dataStruct* mainInitialize(int argc, char** argv)
 {
-  // Welcome msg ------------------------------------------------------------
+  // Welcome msg ----------------------------------------------------------------------------------
   printf("Start Program...\n");
   // conncet ctrl+c Handler
   signal(SIGINT, ctrlCHandler);
 
-  // Define main variables --------------------------------------------------
+  // Define main variables ------------------------------------------------------------------------
   struct dataStruct* data;
   data->argc = argc;
   data->argv = argv;
-  data->is_mainfun_ready = false;
   data->is_control_ready = false;
   data->is_rosnode_ready = false;
   data->is_sensors_ready = false;
 
-  data->wSys = ODE(3, *diffDyn);
-  data->w.push_back(0); data->w.push_back(0); data->w.push_back(0);
-
-  TimeSampling st(_MAINFUN_FREQ);
+  TimeSampling st(_ROSNODE_FREQ);
   for (int i = 0; i < 25; ++i) {
     data->record[i] = 0.0;       // initialize record data with zeros
   }
 
-  // Start threads ----------------------------------------------------------
+  // Start threads --------------------------------------------------------------------------------
   pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
   pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
-  //pthread_create(&_Thread_Rosnode, NULL, rosnodeThread, (void *) &data);
 
-  // Create new record file -------------------------------------------------
+  // Create new record file -----------------------------------------------------------------------
   char file_name[64];
   int fileNumber = 0;
   // find avaliable file name & number
@@ -156,7 +146,7 @@ dataStruct* mainInitialize(int argc, char** argv)
                      "gx,gy,gz,"
                      "mx,my,mz,"
                      "enc0,enc1,enc2,"
-                     "roll,pitch,yaw,"
+                     "enc0dot,enc1dot,enc2dot,"
                      "ur,up,uw,uz,"
                      "d0,d1,d2,d3,d4\n");
 
@@ -168,8 +158,6 @@ dataStruct* mainInitialize(int argc, char** argv)
   data->rosnode = new RosNode (nh,name);          // define RosNode object
   initializeParams(nh, data);                     // initialize ros parameter
 
-  printf("ros is ready\n");
-
   // Wait for user to be ready ------------------------------------------------
   while(!data->is_control_ready || !data->is_sensors_ready);
   int x = 0;
@@ -178,7 +166,7 @@ dataStruct* mainInitialize(int argc, char** argv)
     cin >> x;
     sleep(1);
   }
-  data->is_mainfun_ready = true;
+  data->is_rosnode_ready = true;
 }
 
 /**************************************************************************************************
@@ -186,7 +174,7 @@ dataStruct* mainInitialize(int argc, char** argv)
 **************************************************************************************************/
 void *controlThread(void *data) {
 
-  // Initialize Control thread ------------------------------------------------------------------
+  // Starting Control thread ----------------------------------------------------------------------
   printf("Start Control thread\n");
 
   // Initialize mapping data
@@ -195,44 +183,54 @@ void *controlThread(void *data) {
 
   // Initialize sampling time
   TimeSampling ts(_CONTROL_FREQ);
-  float dt, dtsumm = 0;
 
   // Initialize PWM
-  initializePWM(my_data->pwm);
+  PWM* pwm;
+  initializePWM(pwm, 0);
   my_data->du[0] = 0.0;
   my_data->du[1] = 0.0;
   my_data->du[2] = 0.0;
   my_data->du[3] = 0.0;
 
   // Announce control thread is ready
+  printf("control is ready\n");
   my_data->is_control_ready = true;
 
   // Wait for main function to be ready
   while(!my_data->is_mainfun_ready);
 
-  // Main loop ----------------------------------------------------------------------------------
-  printf("control is ready\n");
+  // Main loop ------------------------------------------------------------------------------------
+  float dt, dtsumm = 0;
   while (!_CloseRequested) {
 
-    // calculate sampling time
+    // Calculate sampling time
     dt = ts.updateTs();
 
-    // Run control function when sampling is not big
-    if (dt < 0.02) {
-      control(my_data,dt);
-    } else {
-      printf("Control thread: sampling time is too big = %f\n",dt);
-      //TODO: stop control thread for huge sampling time
+    // Check if rosnode is ready
+    if (!my_data->is_mainfun_ready) {
+      // Check sampling
+      if (dt < 0.02) {
+        // Run control function
+        control(my_data, dt);
+        // Send data to motors
+        sendToMotors(pwm, my_data->du, my_data->du_min, my_data->du_max);
+      }
+      else {
+        printf("Control thread: sampling time is too big = %f\n", dt);
+        // Send minimum pwm value
+        setMinPWM(pwm);
+      }
     }
-
-    // Send data to motor
-    du2motor(my_data->pwm, my_data->du, my_data->pwm_offset, my_data->du_min, my_data->du_max);
+    else {
+      // Send minimum pwm value
+      setMinPWM(pwm);
+    }
 
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5.0) {
       dtsumm = 0;
-      printf("Control thread: running fine with %4d Hz\n", int(1 / dt));
+      printf("Control thread: running with %4d Hz\n", int(1 / dt));
     }
   }
 
@@ -247,7 +245,7 @@ void *controlThread(void *data) {
  *************************************************************************************************/
 void *sensorsThread(void *data) {
 
-  // Initialize sensors node thread -------------------------------------------------------------
+  // Initialize sensors node thread ---------------------------------------------------------------
   printf("Start Sensors thread\n");
 
   // Initialize mapping data
@@ -276,7 +274,7 @@ void *sensorsThread(void *data) {
   // Announce sensors thread is ready
   my_data->is_sensors_ready = true;
 
-  // Main loop ----------------------------------------------------------------------------------
+  // Main loop ------------------------------------------------------------------------------------
   TimeSampling ts(_SENSORS_FREQ);
   float dt, dtsumm = 0;
   printf("sensor is ready now\n");
@@ -328,7 +326,7 @@ void *sensorsThread(void *data) {
     }
   }
 
-  // Exit procedure -----------------------------------------------------------------------------
+  // Exit procedure -------------------------------------------------------------------------------
   ctrlCHandler(0);
   printf("Exit sensor thread\n");
   pthread_exit(NULL);
@@ -339,7 +337,7 @@ void *sensorsThread(void *data) {
 **************************************************************************************************/
 void *rosNodeThread(void *data) {
 
-  // Initialize ros node thread -----------------------------------------------------------------
+  // Initialize ros node thread -------------------------------------------------------------------
   printf("Start ROS Node thread\n");
 
   // Initialize mapping data
@@ -388,7 +386,7 @@ initializeParams: initialize parameter using rosparm package
 **************************************************************************************************/
 void initializeParams(ros::NodeHandle& n, dataStruct* data){
 
-  // Get Control Parameter ----------------------------------------------------------------------
+  // Get Control Parameter ------------------------------------------------------------------------
   // Kp angle gains
   if (n.getParam("testbed/control/angle/gains/kp", data->angConGain.kp))
     ROS_INFO("Found angle control kp gains");
@@ -397,7 +395,6 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     data->angConGain.kp.assign(0,0.4);
     data->angConGain.kp.assign(1,0.4);
     data->angConGain.kp.assign(2,0.8);
-
   }
   // Ki angle gains
   if (n.getParam("testbed/control/angle/gains/ki", data->angConGain.ki))
@@ -427,7 +424,6 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     data->angConGain.kr.assign(0,0.2);
     data->angConGain.kr.assign(1,0.2);
     data->angConGain.kr.assign(2,0.2);
-
   }
   // Kw gains
   if (n.getParam("testbed/control/angle/gains/kw", data->angConGain.kw))
@@ -439,7 +435,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     data->angConGain.kw.assign(2,0.1);
   }
 
-  // Get Motors Offsets -------------------------------------------------------------------------
+  // Get Motors Offsets ---------------------------------------------------------------------------
   std::vector<double> offset;
   if (n.getParam("testbed/motors/offset", offset)){
     ROS_INFO("Found motor offset gains");
@@ -456,7 +452,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     data->pwm_offset[3] = 0.0;
   }
 
-  // Get du max min values ----------------------------------------------------------------------
+  // Get du max min values ------------------------------------------------------------------------
   std::vector<double> du;
   if (n.getParam("ground_station/du_command/thrust", du)){
     data->du_min[0] = du[0];
@@ -491,7 +487,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
     data->du_max[3] = +0.1;
   }
 
-  // Get encoderes direction --------------------------------------------------------------------
+  // Get encoderes direction ----------------------------------------------------------------------
   std::vector<double> enc_dir;
   if (n.getParam("testbed/encoders_direction", enc_dir)){
     ROS_INFO("Found encoders direction");
@@ -506,7 +502,7 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
   data->enc_dir[1] = enc_dir[1];
   data->enc_dir[2] = enc_dir[2];
 
-  // print result -------------------------------------------------------------------------------
+  // print result ---------------------------------------------------------------------------------
   ROS_INFO("control kp gains are set to: kp[0] %f, kp[1] %f, kp[2] %f\n",
            data->angConGain.kp[0],data->angConGain.kp[1],data->angConGain.kp[2]);
   ROS_INFO("Control ki gains are set to: ki[0] %f, ki[1] %f, ki[2] %f\n",
@@ -530,12 +526,10 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
 printRecord: print recorded data in a file
 **************************************************************************************************/
 void printRecord(FILE* file, float data[]){
-  int size = 25;          // record data 0-24
-  // Timing data
-  struct timeval tv;
 
-  // Record data header
-  char buf[1024];
+  int size = 25;                                  // record data 0-24
+  struct timeval tv;                              // Timing data
+  char buf[1024];                                 // Record data header
   char *pos = buf;
 
   // Calculate delta time
@@ -550,7 +544,6 @@ void printRecord(FILE* file, float data[]){
 
   // print collected data
   fprintf(file, "%s\n", buf);
-  //printf("%s\n", buf);
 }
 
 /*****************************************************************************************
@@ -561,17 +554,9 @@ vec diffDyn(vec& x, vec& xdot, vec& u, vec& par)
   // define output vector
   vec y(x.size());
 
-  // if the parameter vector is empty initialize by default value
-  if (par.empty())
-    for (int i=0; i< x.size(); i++){
-      par.push_back(50.0);
-    }
-
   // apply numerical differential dynamics for all input
-  for (int i=0; i < x.size(); i++){
-    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-    y[i] =           x[i] +          par[i] * u[i];
-  }
+    xdot[0] =        - 50.0 * x[0] +  1.0 * u[0];
+    y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
 
   // return differentiated signal
   return y;
