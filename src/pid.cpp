@@ -1,7 +1,7 @@
 #include "../include/testbed_navio/navio_interface.h"
 #include "../include/lib/TimeSampling.h"                // time sampling library
 #include "../include/lib/ode.h"                         // ODE library
-
+#include "../include/lib/rotor.h"                       // ODE library
 #include "../include/lib/pid.h"                         // PID library
 #include <iostream>
 #include <signal.h>                         // signal ctrl+c
@@ -28,43 +28,6 @@ vec dyn(vec& x, vec& xdot, vec& u, vec& par){
   xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
   return y;
 }
-/**************************************************************************************************
- *
-**************************************************************************************************/
-class Rotor{
-private:
-  ODE ode;
-  PID pid;
-public:
-  vec x;
-  Rotor (float dt){
-    ode = ODE(2, dyn);
-    x = ode.getX();
-    pid.setGains(2.5, 5.5, 0, 0.2);
-  }
-  Rotor(){}
-  ~Rotor(){}
-  float update(float Wdes, float dt){
-    // PI conrol with anti windup procedure
-    Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
-
-    // Applay pid control
-    float u = pid.update(x[0], Wdes, 0.0, 2.2, dt);
-
-    float usat;
-    // PWM signal conditioning
-    if (u > 0)
-      usat = u * 0.4177 + 0.04252;
-    else
-      usat = 0;
-
-    // System dynamics
-    vec empty;
-    vec input = {usat};
-    x = ode.update(input, empty, dt);
-    return usat;
-  }
-};
 /**************************************************************************************************
  *
 **************************************************************************************************/
@@ -155,11 +118,14 @@ void* controlThread(void *data)
   initializePWM(pwm, 0);
   float freq = 100;
   TimeSampling ts(freq);
-  for (int i=0; i<4 ; i++)
-    data_->rotors[i] = Rotor(1.0/freq);
+  ODE ode[4];
+  for (int i=0; i<4 ; i++){
+    ode[i] = ODE(2, dyn);
+    data_->rotors[i] = Rotor(ode[i]);
+  }
   for (int i=0; i<3 ; i++){
     data_->Wpid[i] = PID();
-    data_->Wpid[i].setGains(400.0, 600.0, 2, 0);
+    data_->Wpid[i].setGains(400.0, 600.0, 0, 2);
   }
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
