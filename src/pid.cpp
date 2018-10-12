@@ -136,7 +136,8 @@ void* controlThread(void *data)
       float du[4];
 
       du[0] = data_->rosnode->_du[0];
-      for (int i=0; i<3 ; i++){
+      du[3] = data_->rosnode->_du[3];
+      for (int i=0; i<2 ; i++){
           float tmp = data_->Apid[i].update(data_->ang[i], data_->rosnode->_ang[i],  -2.0,   2.0, dt);
             du[i+1] = data_->Wpid[i].update(  data_->W[i],                     tmp,-400.0, 400.0, dt);
       }
