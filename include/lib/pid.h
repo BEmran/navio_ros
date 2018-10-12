@@ -36,5 +36,21 @@ public:
     _e0 = e;
     return u;
   }
+  float update(float x, float xdot, float xdes, float m, float M, float dt){
+    float e = xdes - x;
+    float ed = 0.0 - xdot;
+    float u = _Kp * e + _ei + _Kd * ed;
+    float usat;
+    if (u >= M)
+      usat = M;
+    else if (u <= m)
+      usat = m;
+    else
+      usat = u;
+
+    _ei += (e * _Ki + _Kt * (-u+usat)) * dt;
+    _e0 = e;
+    return u;
+  }
   };
 #endif // PID_H

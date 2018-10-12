@@ -27,21 +27,22 @@ protected:
   int _queue_size;
   ros::NodeHandle _nh;
   ros::Publisher _pub_ang, _pub_w, _pub_du;	// publish angle encoder message
-  ros::Subscriber _sub_du;    			// subscriber to desired duty cycle
+  ros::Subscriber _sub_du,_sub_ang;    			// subscriber to desired duty cycle
   std::string _name;
 public:
-  float _du[4];
+  float _du[4], _ang[3];
   RosNode(){}
   RosNode(ros::NodeHandle nh, std::string name){
     _du[0] = 0.0; _du[1] = 0.0; _du[2] = 0.0; _du[3] = 0.0;
+    _ang[0] = 0.0; _ang[1] = 0.0; _ang[2] = 0.0;
     _nh = nh;
     _name = name;
     _queue_size = 10;
     _pub_ang = _nh.advertise <geometry_msgs::Vector3Stamped>("encoders", _queue_size);
     _pub_w   = _nh.advertise <geometry_msgs::Vector3Stamped>("w", _queue_size);
     _pub_du  = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/du", _queue_size);
-
-    _sub_du  = _nh.subscribe("du", _queue_size, &RosNode::cmdDuCallback , this);
+    _sub_du   = _nh.subscribe("du", _queue_size, &RosNode::cmdDuCallback , this);
+    _sub_ang  = _nh.subscribe("ang", _queue_size, &RosNode::cmdDuCallback , this);
   }
   ~RosNode(){}
   void publishAngMsg(const float ang[3]){
@@ -72,11 +73,17 @@ public:
     _pub_du.publish(msg_du);
   }
   void cmdDuCallback(const geometry_msgs::Twist& msg){
-    ROS_INFO("x=%f, z=%f\n",msg.angular.x, msg.angular.z);
+    ROS_INFO("x=%f, y=%f, z=%f\n",msg.angular.x, msg.angular.y, msg.angular.z);
     _du[0] = msg.linear.z;
     _du[1] = msg.angular.x;
     _du[2] = msg.angular.y;
     _du[3] = msg.angular.z;
+  }
+  void cmdAngCallback(const geometry_msgs::Vector3Stamped& msg){
+    ROS_INFO("x=%f, y=%f, z=%f\n",msg.vector.x, msg.vector.y, msg.vector.z);
+    _ang[0] = msg.vector.x;
+    _ang[1] = msg.vector.y;
+    _ang[2] = msg.vector.z;
   }
 };
 /**************************************************************************************************
@@ -92,7 +99,7 @@ struct dataStruct {
   float ang[3];
   RosNode *rosnode;
   Rotor rotors[4];
-  PID Wpid[3];
+  PID Wpid[3], Apid[3];
   ODE Wdyn[3];
   float W[3];
 };
@@ -114,7 +121,9 @@ void* controlThread(void *data)
   }
   for (int i=0; i<3 ; i++){
     data_->Wpid[i] = PID();
+    data_->Apid[i] = PID();
     data_->Wpid[i].setGains(400.0, 200.0, 0, 2);
+    data_->Apid[i].setGains( 5.0,  3.0, 0, 0.1);
   }
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
@@ -127,9 +136,10 @@ void* controlThread(void *data)
       float du[4];
 
       du[0] = data_->rosnode->_du[0];
-      for (int i=0; i<3 ; i++)
-        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0, dt);
-
+      for (int i=0; i<3 ; i++){
+          float tmp = data_->Apid[i].update(data_->ang[i], data_->rosnode->_ang[i],  -2.0,   2.0, dt);
+            du[i+1] = data_->Wpid[i].update(  data_->W[i],                     tmp,-400.0, 400.0, dt);
+      }
       float dz = sat(du[0],    0.0, 2000.0) / 4.0;
       float dr = sat(du[1], -400.0,  400.0) / 2.0;
       float dp = sat(du[2], -400.0,  400.0) / 2.0;
