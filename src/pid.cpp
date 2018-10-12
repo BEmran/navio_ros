@@ -42,7 +42,7 @@ public:
     _pub_w   = _nh.advertise <geometry_msgs::Vector3Stamped>("w", _queue_size);
     _pub_du  = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/du", _queue_size);
     _sub_du   = _nh.subscribe("du", _queue_size, &RosNode::cmdDuCallback , this);
-    _sub_ang  = _nh.subscribe("ang", _queue_size, &RosNode::cmdDuCallback , this);
+    _sub_ang  = _nh.subscribe("ang", _queue_size, &RosNode::cmdAngCallback , this);
   }
   ~RosNode(){}
   void publishAngMsg(const float ang[3]){
