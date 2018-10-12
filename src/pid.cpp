@@ -212,7 +212,6 @@ void* sensorsThread(void *data)
     //
     vec empty;
     for(int i=0; i<3; i++){
-      data_->ang[i] = -data_->ang[i];
       vec ang_vec = {data_->ang[i]};
       vec tmp = data_->Wdyn[i].update(ang_vec,empty,1.0/freq);
       data_->W[i] = tmp[0];
@@ -223,6 +222,8 @@ void* sensorsThread(void *data)
       // read encoder and convert it to radian
       enc.updateCounts();
       enc.readAnglesRad(data_->ang);
+      data_->ang[0] = -data_->ang[0];
+      data_->ang[1] = -data_->ang[1];
     }
     // Display info for user every 5 second
     dtsumm += dt;
