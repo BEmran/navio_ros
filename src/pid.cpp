@@ -212,7 +212,8 @@ void* sensorsThread(void *data)
     //
     vec empty;
     for(int i=0; i<3; i++){
-      vec ang_vec = {-data_->ang[i]};
+      data_->ang[i] = -data_->ang[i];
+      vec ang_vec = {data_->ang[i]};
       vec tmp = data_->Wdyn[i].update(ang_vec,empty,1.0/freq);
       data_->W[i] = tmp[0];
     }
