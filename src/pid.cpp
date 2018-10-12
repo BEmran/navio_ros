@@ -1,6 +1,8 @@
 #include "../include/testbed_navio/navio_interface.h"
 #include "../include/lib/TimeSampling.h"                // time sampling library
 #include "../include/lib/ode.h"                         // ODE library
+
+#include "../include/lib/pid.h"                         // PID library
 #include <iostream>
 #include <signal.h>                         // signal ctrl+c
 #include "ros/ros.h"
@@ -29,46 +31,6 @@ vec dyn(vec& x, vec& xdot, vec& u, vec& par){
 /**************************************************************************************************
  *
 **************************************************************************************************/
-class PID{
-private:
-  float _ei, _e0;
-  float _dt;
-  float _Kp, _Ki, _Kd, _Kt;
-public:
-  PID(){}
-  ~PID(){}
-  PID(float dt){
-    _dt = dt;
-    _ei = 0.0;
-    _e0 = 0.0;
-  }
-  void setGains(float Kp = 1, float Ki = 0, float Kd = 0, float Kt = 0){
-    _Kp = Kp;
-    _Ki = Ki;
-    _Kd = Kd;
-    _Kt = Kt;
-  }
-
-  float update(float x, float xdes, float m, float M){
-    float e = xdes - x;
-    float ed = (e - _e0) / _dt;
-    float u = _Kp * e + _ei + _Kd * ed;
-    float usat;
-    if (u >= M)
-      usat = M;
-    else if (u <= m)
-      usat = m;
-    else
-      usat = u;
-
-    _ei += e * (_Ki + _Kt * (-u+usat)) * _dt;
-    _e0 = e;
-    return u;
-  }
-  };
-/**************************************************************************************************
- *
-**************************************************************************************************/
 class Rotor{
 private:
   ODE ode;
@@ -78,7 +40,6 @@ public:
   Rotor (float dt){
     ode = ODE(2, dyn);
     x = ode.getX();
-    pid = PID(dt);
     pid.setGains(2.5, 5.5, 0, 0.2);
   }
   Rotor(){}
@@ -88,7 +49,7 @@ public:
     Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
 
     // Applay pid control
-    float u = pid.update(x[0], Wdes, 0.0, 2.2);
+    float u = pid.update(x[0], Wdes, 0.0, 2.2, dt);
 
     float usat;
     // PWM signal conditioning
@@ -197,7 +158,7 @@ void* controlThread(void *data)
   for (int i=0; i<4 ; i++)
     data_->rotors[i] = Rotor(1.0/freq);
   for (int i=0; i<3 ; i++){
-    data_->Wpid[i] = PID(1.0/freq);
+    data_->Wpid[i] = PID();
     data_->Wpid[i].setGains(400.0, 600.0, 2, 0);
   }
   // Main loop ----------------------------------------------------------------------------------
@@ -212,7 +173,7 @@ void* controlThread(void *data)
 
       du[0] = data_->rosnode->_du[0];
       for (int i=0; i<3 ; i++)
-        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0);
+        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0, dt);
 
       float dz = sat(du[0],    0.0, 2000.0) / 4.0;
       float dr = sat(du[1], -400.0,  400.0) / 2.0;
