@@ -14,7 +14,7 @@ public:
   Rotor (ODE ode){
     _ode = ode;
     x = _ode.getX();
-    pid.setGains(2.5, 5.5, 0, 0.2);
+    _pid.setGains(2.5, 5.5, 0, 0.2);
   }
   Rotor(){}
   ~Rotor(){}
@@ -26,13 +26,12 @@ public:
     float u = _pid.update(x[0], Wdes, 0.0, 2.2, dt);
 
     // PWM signal conditioning
-    float y = signalConditioning(u);
+    vec input = {signalConditioning(u)};
 
     // System dynamics
     vec empty;
-    vec input = {usat};
     x = _ode.update(input, empty, dt);
-    return y;
+    return input[0];
   }
   float signalConditioning(float u){
     float y;
