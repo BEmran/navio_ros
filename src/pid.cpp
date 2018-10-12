@@ -22,15 +22,6 @@ vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
 /**************************************************************************************************
  *
 **************************************************************************************************/
-vec dyn(vec& x, vec& xdot, vec& u, vec& par){
-  vec y = x;
-  xdot[0] =                x[1];
-  xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
-  return y;
-}
-/**************************************************************************************************
- *
-**************************************************************************************************/
 class RosNode{
 protected:
   int _queue_size;
@@ -118,14 +109,12 @@ void* controlThread(void *data)
   initializePWM(pwm, 0);
   float freq = 100;
   TimeSampling ts(freq);
-  ODE ode[4];
   for (int i=0; i<4 ; i++){
-    ode[i] = ODE(2, dyn);
-    data_->rotors[i] = Rotor(ode[i]);
+    data_->rotors[i] = Rotor();
   }
   for (int i=0; i<3 ; i++){
     data_->Wpid[i] = PID();
-    data_->Wpid[i].setGains(400.0, 600.0, 0, 2);
+    data_->Wpid[i].setGains(400.0, 200.0, 0, 2);
   }
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;

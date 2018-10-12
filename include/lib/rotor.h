@@ -11,12 +11,11 @@ private:
   PID _pid;
 public:
   vec x;
-  Rotor (ODE ode){
-    _ode = ode;
+  Rotor (){
+    _ode = ODE(2, dyn);
     x = _ode.getX();
     _pid.setGains(2.5, 5.5, 0, 0.2);
   }
-  Rotor(){}
   ~Rotor(){}
   float update(float Wdes, float dt){
     // PI conrol with anti windup procedure
@@ -40,6 +39,15 @@ public:
       y = u * 0.4177 + 0.04252;
     else
       y = 0;
+    return y;
+  }
+  /**************************************************************************************************
+   *
+  **************************************************************************************************/
+  static vec dyn(vec& x, vec& xdot, vec& u, vec& par){
+    vec y = x;
+    xdot[0] =                x[1];
+    xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
     return y;
   }
 };
