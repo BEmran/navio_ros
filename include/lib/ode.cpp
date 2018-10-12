@@ -81,7 +81,19 @@ vec ODE::getXdot(void) const{
   vec tmpX = xdot_;
   return tmpX;                // return the vetor
 }
-
+/******************************************************************************
+ * @update: main method that apply deferential equations and integration
+ * parameter:
+   - u: input vector
+   - dt: time increment. If not defined equal to 0.01
+ * returns: a copy of the output vector
+******************************************************************************/
+vec ODE::update(vec& u, float dt){
+  vec empty;
+  vec y = dynFun_(x_, xdot_, u, empty);     // apply dynamic equations
+  tapzInteg(dt);                            // apply integration
+  return y;                                 // return output vector
+}
 /******************************************************************************
  * @update: main method that apply deferential equations and integration
  * parameter:

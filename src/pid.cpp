@@ -1,5 +1,6 @@
 #include "../include/testbed_navio/navio_interface.h"
 #include "../include/lib/TimeSampling.h"                // time sampling library
+#include "../include/lib/Encoder.h"
 #include "../include/lib/ode.h"                         // ODE library
 #include <iostream>
 #include <signal.h>                         // signal ctrl+c
@@ -17,93 +18,93 @@ vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
     y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
   return y;
 }
-/**************************************************************************************************
- *
-**************************************************************************************************/
-vec dyn(vec& x, vec& xdot, vec& u, vec& par){
-  vec y = x;
-  xdot[0] =                x[1];
-  xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
-  return y;
-}
-/**************************************************************************************************
- *
-**************************************************************************************************/
-class PID{
-private:
-  float _ei, _e0;
-  float _dt;
-  float _Kp, _Ki, _Kd, _Kt;
-public:
-  PID(){}
-  ~PID(){}
-  PID(float dt){
-    _dt = dt;
-    _ei = 0.0;
-    _e0 = 0.0;
-  }
-  void setGains(float Kp = 1, float Ki = 0, float Kt = 0, float Kd = 0){
-    _Kp = Kp;
-    _Ki = Ki;
-    _Kt = Kt;
-    _Kd = Kd;
-  }
+///**************************************************************************************************
+// *
+//**************************************************************************************************/
+//vec dyn(vec& x, vec& xdot, vec& u, vec& par){
+//  vec y = x;
+//  xdot[0] =                x[1];
+//  xdot[1] = -300*x[0] - 35*x[1] + 300*u[0];
+//  return y;
+//}
+///**************************************************************************************************
+// *
+//**************************************************************************************************/
+//class PID{
+//private:
+//  float _ei, _e0;
+//  float _dt;
+//  float _Kp, _Ki, _Kd, _Kt;
+//public:
+//  PID(){}
+//  ~PID(){}
+//  PID(float dt){
+//    _dt = dt;
+//    _ei = 0.0;
+//    _e0 = 0.0;
+//  }
+//  void setGains(float Kp = 1, float Ki = 0, float Kt = 0, float Kd = 0){
+//    _Kp = Kp;
+//    _Ki = Ki;
+//    _Kt = Kt;
+//    _Kd = Kd;
+//  }
 
-  float update(float x, float xdes, float m, float M){
-    float e = xdes - x;
-    float ed = (e - _e0) / _dt;
-    float u = _Kp * e + _Ki * _ei + _Kd * ed;
-    float usat;
-    if (u >= M)
-      usat = M;
-    else if (u <= m)
-      usat = m;
-    else
-      usat = u;
+//  float update(float x, float xdes, float m, float M){
+//    float e = xdes - x;
+//    float ed = (e - _e0) / _dt;
+//    float u = _Kp * e + _Ki * _ei + _Kd * ed;
+//    float usat;
+//    if (u >= M)
+//      usat = M;
+//    else if (u <= m)
+//      usat = m;
+//    else
+//      usat = u;
 
-    _ei += e * _dt * (_Kt * (-u+usat));
-    _e0 = e;
-    return u;
-  }
-  };
-/**************************************************************************************************
- *
-**************************************************************************************************/
-class Rotor{
-private:
-  ODE ode;
-  PID pid;
-public:
-  vec x;
-  Rotor (float dt){
-    ode = ODE(2, dyn);
-    x = ode.getX();
-    pid = PID(dt);
-    pid.setGains(2.5, 20.5, 21.5/20.5, 0);
-  }
-  Rotor(){}
-  ~Rotor(){}
-  float update(float Wdes, float dt){
-    // PI conrol with anti windup procedure
-    Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
+//    _ei += e * _dt * (_Kt * (-u+usat));
+//    _e0 = e;
+//    return u;
+//  }
+//  };
+///**************************************************************************************************
+// *
+//**************************************************************************************************/
+//class Rotor{
+//private:
+//  ODE ode;
+//  PID pid;
+//public:
+//  vec x;
+//  Rotor (float dt){
+//    ode = ODE(2, dyn);
+//    x = ode.getX();
+//    pid = PID(dt);
+//    pid.setGains(2.5, 20.5, 21.5/20.5, 0);
+//  }
+//  Rotor(){}
+//  ~Rotor(){}
+//  float update(float Wdes, float dt){
+//    // PI conrol with anti windup procedure
+//    Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
 
-    // Applay pid control
-    float u = pid.update(x[0], Wdes, 0.0, 2.2);
+//    // Applay pid control
+//    float u = pid.update(x[0], Wdes, 0.0, 2.2);
 
-    float usat;
-    // PWM signal conditioning
-    if (u > 0)
-      usat = u * 0.4177 + 0.04252;
-    else
-      usat = 0;
+//    float usat;
+//    // PWM signal conditioning
+//    if (u > 0)
+//      usat = u * 0.4177 + 0.04252;
+//    else
+//      usat = 0;
 
-    // System dynamics
-    vec empty;
-    vec input = {usat};
-    x = ode.update(input, empty, dt);
-    return usat;
-  }
-};
+//    // System dynamics
+//    vec empty;
+//    vec input = {usat};
+//    x = ode.update(input, empty, dt);
+//    return usat;
+//  }
+//};
 /**************************************************************************************************
  *
 **************************************************************************************************/
@@ -159,13 +160,14 @@ public:
 using namespace std;
 pthread_t _Thread_Control;
 pthread_t _Thread_Sensors;
+float du_min[] = {   0.0, -400.0, -400.0, -400.0};
+float du_max[] = {2000.0, +400.0, +400.0, +400.0};
 bool _CloseRequested = false;
 void ctrlCHandler(int signal);
 struct dataStruct {
   bool is_rosnode_ready;
   float ang[3];
   RosNode *rosnode;
-  Rotor rotors[4];
   PID Wpid[3];
   ODE Wdyn[3];
   float W[3];
@@ -179,14 +181,12 @@ void* controlThread(void *data)
   printf("Start Control thread\n");
   struct dataStruct *data_;
   data_ = (struct dataStruct *) data;
-  PWM *pwm;
-  initializePWM(pwm, 0);
+  NavioInterface navio;
+  navio.initialize();
   float freq = 100;
   TimeSampling ts(freq);
-  for (int i=0; i<4 ; i++)
-    data_->rotors[i] = Rotor(1.0/freq);
   for (int i=0; i<3 ; i++){
-    data_->Wpid[i] = PID(1.0/freq);
+    data_->Wpid[i] = PID();
     data_->Wpid[i].setGains(400.0, 600.0, 2, 0);
   }
   // Main loop ----------------------------------------------------------------------------------
@@ -201,33 +201,14 @@ void* controlThread(void *data)
 
       du[0] = data_->rosnode->_du[0];
       for (int i=0; i<3 ; i++)
-        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0);
-
-      float dz = sat(du[0],    0.0, 2000.0) / 4.0;
-      float dr = sat(du[1], -400.0,  400.0) / 2.0;
-      float dp = sat(du[2], -400.0,  400.0) / 2.0;
-      float dw = sat(du[3], -400.0,  400.0) / 4.0;
-
-      // du to PWM
-      float uPWM[4];
-      uPWM[0] = dz - dp - dw;
-      uPWM[1] = dz - dr + dw;
-      uPWM[2] = dz + dp - dw;
-      uPWM[3] = dz + dr + dw;
-
-      // rotor control
-      float r[4];
-      for (int i=0; i<4 ; i++)
-        r[i] = data_->rotors[i].update(uPWM[i], 1.0/freq);
-      //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
-      //data_->rosnode->publishAngMsg(tmp);
+        du[i+1] = data_->Wpid[i].update(data_->W[i], data_->rosnode->_du[i+1], -400.0, 400.0, 1.0/freq);
 
       // Send PWM
-      setPWMDuty(pwm, r);
+      navio.send(du, du_min, du_max);
     }
     else{
       float r[4] ={0, 0, 0, 0};
-      setPWMDuty(pwm, r);
+      navio.send(r, du_min, du_max);
     }
     // Display info for user every 5 second
     dtsumm += dt;
@@ -238,7 +219,7 @@ void* controlThread(void *data)
   }
 
   // Exit procedure -----------------------------------------------------------------------------
-  setOffPWM(pwm);
+  navio.setMinPWM();
   ctrlCHandler(0);
   printf("Exit control thread\n");
   pthread_exit(NULL);
@@ -252,8 +233,6 @@ void* sensorsThread(void *data)
   printf("Start Sensors thread\n");
   struct dataStruct *data_;
   data_ = (struct dataStruct *) data;
-  PWM *pwm;
-  initializePWM(pwm, 0);
   float freq = 100;
   TimeSampling ts(freq);
   Encoder enc(true);

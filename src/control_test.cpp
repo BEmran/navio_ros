@@ -1,4 +1,5 @@
 #include "../include/testbed_navio/navio_interface.h"
+#include "../include/lib/Encoder.h"               // time sampling library
 #include "../include/lib/TimeSampling.h"               // time sampling library
 #include <iostream>
 #include <signal.h>                         // signal ctrl+c
@@ -51,6 +52,8 @@ using namespace std;
 pthread_t _Thread_Control;
 bool _CloseRequested = false;
 void ctrlCHandler(int signal);
+float du_min[] = {   0.0, -400.0, -400.0, -400.0};
+float du_max[] = {2000.0, +400.0, +400.0, +400.0};
 struct dataStruct {
     bool is_rosnode_ready;
     float ang[3];
@@ -65,8 +68,8 @@ void* controlThread(void *data)
     printf("Start Control thread\n");
     struct dataStruct *data_;
     data_ = (struct dataStruct *) data;
-    PWM *pwm;
-    initializePWM(pwm, 0);
+    NavioInterface navio;
+    navio.initialize();
     TimeSampling ts(100);
 
     // Main loop ----------------------------------------------------------------------------------
@@ -78,7 +81,7 @@ void* controlThread(void *data)
         dt = ts.updateTs();
 
         // Send PWM
-        setPWMDuty(pwm, data_->rosnode->_du);
+        navio.send(data_->rosnode->_du, du_min, du_max);
 
         // Display info for user every 5 second
         dtsumm += dt;
