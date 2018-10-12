@@ -42,17 +42,17 @@ public:
     _ei = 0.0;
     _e0 = 0.0;
   }
-  void setGains(float Kp = 1, float Ki = 0, float Kt = 0, float Kd = 0){
+  void setGains(float Kp = 1, float Ki = 0, float Kd = 0, float Kt = 0){
     _Kp = Kp;
     _Ki = Ki;
-    _Kt = Kt;
     _Kd = Kd;
+    _Kt = Kt;
   }
 
   float update(float x, float xdes, float m, float M){
     float e = xdes - x;
     float ed = (e - _e0) / _dt;
-    float u = _Kp * e + _Ki * _ei + _Kd * ed;
+    float u = _Kp * e + _ei + _Kd * ed;
     float usat;
     if (u >= M)
       usat = M;
@@ -61,7 +61,7 @@ public:
     else
       usat = u;
 
-    _ei += e * _dt * (_Kt * (-u+usat));
+    _ei += e * (_Ki + _Kt * (-u+usat)) * _dt;
     _e0 = e;
     return u;
   }
@@ -79,7 +79,7 @@ public:
     ode = ODE(2, dyn);
     x = ode.getX();
     pid = PID(dt);
-    pid.setGains(2.5, 20.5, 21.5/20.5, 0);
+    pid.setGains(2.5, 5.5, 0, 0.2);
   }
   Rotor(){}
   ~Rotor(){}
@@ -111,8 +111,8 @@ class RosNode{
 protected:
   int _queue_size;
   ros::NodeHandle _nh;
-  ros::Publisher _pub_ang, _pub_w;    // publish angle encoder message
-  ros::Subscriber _sub_du;    // subscriber to desired duty cycle
+  ros::Publisher _pub_ang, _pub_w, _pub_du;	// publish angle encoder message
+  ros::Subscriber _sub_du;    			// subscriber to desired duty cycle
   std::string _name;
 public:
   float _du[4];
@@ -124,6 +124,8 @@ public:
     _queue_size = 10;
     _pub_ang = _nh.advertise <geometry_msgs::Vector3Stamped>("encoders", _queue_size);
     _pub_w   = _nh.advertise <geometry_msgs::Vector3Stamped>("w", _queue_size);
+    _pub_du  = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/du", _queue_size);
+
     _sub_du  = _nh.subscribe("du", _queue_size, &RosNode::cmdDuCallback , this);
   }
   ~RosNode(){}
@@ -144,6 +146,15 @@ public:
     msg_w.vector.y = w[1];
     msg_w.vector.z = w[2];
     _pub_w.publish(msg_w);
+  }
+  void publishDuMsg(const float du[3]){
+    geometry_msgs::Vector3Stamped msg_du;
+    msg_du.header.stamp = ros::Time::now();
+    msg_du.header.seq++;
+    msg_du.vector.x = du[0];
+    msg_du.vector.y = du[1];
+    msg_du.vector.z = du[2];
+    _pub_du.publish(msg_du);
   }
   void cmdDuCallback(const geometry_msgs::Twist& msg){
     ROS_INFO("x=%f, z=%f\n",msg.angular.x, msg.angular.z);
@@ -208,6 +219,9 @@ void* controlThread(void *data)
       float dp = sat(du[2], -400.0,  400.0) / 2.0;
       float dw = sat(du[3], -400.0,  400.0) / 4.0;
 
+      float msg[3] = {dr, dp, dw};
+      data_->rosnode->publishDuMsg(msg);
+
       // du to PWM
       float uPWM[4];
       uPWM[0] = dz - dp - dw;
@@ -220,9 +234,8 @@ void* controlThread(void *data)
       for (int i=0; i<4 ; i++)
         r[i] = data_->rotors[i].update(uPWM[i], 1.0/freq);
       //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
-      //data_->rosnode->publishAngMsg(tmp);
 
-      // Send PWM
+      // send PWM
       setPWMDuty(pwm, r);
     }
     else{
