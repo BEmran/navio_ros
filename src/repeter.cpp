@@ -12,15 +12,20 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   RosNode rosnode(nh, "test");
   ros::Rate loop_rate(100);
-  float omega[4]={0,0,0,0};
+  std::vector<float> data;
+  int i = 0;
+  std::string label = "sec, nsec, iteration, 1, 2";
   // Main loop ----------------------------------------------------------------------------------
   while (ros::ok()){
-    omega[0] = (float) ros::Time::now().toSec();
-    omega[1] = (float) ros::Time::now().toNSec();
-    omega[2]++;
-    omega[3] = 1;
+    data.clear();
+    i++;
+    data.push_back(ros::Time::now().toSec());
+    data.push_back(ros::Time::now().toNSec());
+    data.push_back(i);
+    data.push_back(1);
+    data.push_back(2);
     // publish du values
-    rosnode.publishOmegaMsg(omega);
+    rosnode.publishDataMsg(data, label);
     // spin
     ros::spinOnce();
     loop_rate.sleep();
