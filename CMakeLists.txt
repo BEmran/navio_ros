@@ -52,20 +52,20 @@ link_directories(
   ${CMAKE_SOURCE_DIR}/${PROJECT_NAME}/include/lib/Navio
 )
 
-add_executable(demo src/demo.cpp)
-target_link_libraries(demo ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(demo src/demo.cpp)
+#target_link_libraries(demo ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 
-add_executable(regulator src/regulator.cpp)
-target_link_libraries(regulator ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(regulator src/regulator.cpp)
+#target_link_libraries(regulator ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 
-add_executable(tracking src/tracking.cpp)
-target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(tracking src/tracking.cpp)
+#target_link_libraries(tracking ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 
-add_executable(ident src/ident.cpp)
-target_link_libraries(ident ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(ident src/ident.cpp)
+#target_link_libraries(ident ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 
-add_executable(sensors_calibrartions src/sensors_calibrartions.cpp)
-target_link_libraries(sensors_calibrartions ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(sensors_calibrartions src/sensors_calibrartions.cpp)
+#target_link_libraries(sensors_calibrartions ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 
 add_executable(pid src/pid.cpp)
 target_link_libraries(pid ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)

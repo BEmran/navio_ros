@@ -1,8 +1,6 @@
 #include "ros_node.h"
 
-RosNode::RosNode()
-{
-}
+RosNode::RosNode(){}
 
 /*****************************************************************************************
 RosNode: construct an object for ros node
@@ -12,11 +10,12 @@ RosNode::RosNode(ros::NodeHandle nh ,std::string name){
   _name = name;
   _queue_size = 10;
 
-  _pub_imu = _nh.advertise <sensor_msgs::Imu>             ("testbed/sensors/row/imu"     , _queue_size);
-  _pub_mag = _nh.advertise <sensor_msgs::MagneticField>   ("testbed/sensors/row/mag"     , _queue_size);
-  _pub_enc = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/row/encoders", _queue_size);
-  _pub_rpy = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/filtered/rpy", _queue_size);
-  _pub_du  = _nh.advertise <geometry_msgs::TwistStamped>  ("testbed/motors/du"           , _queue_size);
+  _pub_imu      = _nh.advertise <sensor_msgs::Imu>             ("testbed/sensors/row/imu"         , _queue_size);
+  _pub_mag      = _nh.advertise <sensor_msgs::MagneticField>   ("testbed/sensors/row/mag"         , _queue_size);
+  _pub_enc      = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/row/encoders"    , _queue_size);
+  _pub_enc_dot  = _nh.advertise <geometry_msgs::Vector3Stamped>("testbed/sensors/row/encoders_dot", _queue_size);
+  _pub_du       = _nh.advertise <geometry_msgs::TwistStamped>  ("testbed/motors/du"               , _queue_size);
+  _pub_omega    = _nh.advertise <std_msgs::Float32MultiArray>  ("testbed/motors/omega"            , _queue_size);
 
 
   _sub_ang = _nh.subscribe("testbed/cmd/angle", _queue_size, &RosNode::cmdAngCallback, this);
@@ -29,23 +28,20 @@ RosNode::RosNode(ros::NodeHandle nh ,std::string name){
   _cmd_du[1] = 0.0;
   _cmd_du[2] = 0.0;
   _cmd_du[3] = 0.0;
-  _cmd_quat.x = 0;
-  _cmd_quat.y = 0;
-  _cmd_quat.z = 0;
-  _cmd_quat.w = 1;
 }
 
 /*****************************************************************************************
 publishMsgs: Publish all msg
 ******************************************************************************************/
 void RosNode::publishAllMsgs(const float gyro[3], const float acc[3], const float quat[4], const float mag[3],
-const float enc[3], const float rpy[3], const float du[4]){
+const float enc[3], const float enc_dot[3], const float du[4], const float omega[4]){
   _time = ros::Time::now();
   publishIMUMsg(gyro, acc, quat);
   publishMagMsg(mag);
   publishEncMsg(enc);
-  publishRPYMsg(rpy);
+  publishEncDotMsg(enc_dot);
   publishDuMsg(du);
+  publishOmegaMsg(omega);
 }
 
 /*****************************************************************************************
@@ -86,16 +82,16 @@ void RosNode::publishMagMsg(const float Mag[3]){
 /*****************************************************************************************
 publishRPYMsg: Publish filtered roll pitch yaw angles msgs
 ******************************************************************************************/
-void RosNode::publishRPYMsg(const float rpy[3])
+void RosNode::publishEncDotMsg(const float enc_dot[3])
 {
-  geometry_msgs::Vector3Stamped msg_rpy;
+  geometry_msgs::Vector3Stamped msg_enc_dot;
 
-  msg_rpy.header.stamp = _time;
-  msg_rpy.header.seq++;
-  msg_rpy.vector.x = rpy[0];
-  msg_rpy.vector.y = rpy[1];
-  msg_rpy.vector.z = rpy[2];
-  _pub_rpy.publish(msg_rpy);
+  msg_enc_dot.header.stamp = _time;
+  msg_enc_dot.header.seq++;
+  msg_enc_dot.vector.x = enc_dot[0];
+  msg_enc_dot.vector.y = enc_dot[1];
+  msg_enc_dot.vector.z = enc_dot[2];
+  _pub_enc_dot.publish(msg_enc_dot);
 }
 
 /*****************************************************************************************
@@ -128,6 +124,23 @@ void RosNode::publishDuMsg(const float du[4]){
 }
 
 /*****************************************************************************************
+publishRPYMsg: Publish filtered roll pitch yaw angles msgs
+******************************************************************************************/
+void RosNode::publishOmegaMsg(const float omega[4])
+{
+  std_msgs::Float32MultiArray msg_omega;
+  msg_omega.layout.dim.push_back(std_msgs::MultiArrayDimension());
+  msg_omega.layout.dim[0].size = 4;
+  msg_omega.layout.dim[0].label = "omega";
+  msg_omega.layout.dim[0].stride = 1;
+  msg_omega.data.clear();
+  msg_omega.data.push_back(omega[0]);
+  msg_omega.data.push_back(omega[1]);
+  msg_omega.data.push_back(omega[2]);
+  msg_omega.data.push_back(omega[3]);
+  _pub_omega.publish(msg_omega);
+}
+/*****************************************************************************************
 angCmdCallback: Read command angle
 ******************************************************************************************/
 void RosNode::cmdAngCallback(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
@@ -146,16 +159,5 @@ void RosNode::cmdDuCallback(const geometry_msgs::TwistStamped::ConstPtr& msg)
   _cmd_du[1] = msg->twist.angular.x;
   _cmd_du[2] = msg->twist.angular.y;
   _cmd_du[3] = msg->twist.angular.z;
-
-}
-/*****************************************************************************************
-duCmdCallback: Read command quaternion vector
-******************************************************************************************/
-void RosNode::cmdQuatCallback(const geometry_msgs::Quaternion::ConstPtr& msg)
-{
-  _cmd_quat.x = msg->x;
-  _cmd_quat.y = msg->y;
-  _cmd_quat.z = msg->z;
-  _cmd_quat.w = msg->w;
 
 }

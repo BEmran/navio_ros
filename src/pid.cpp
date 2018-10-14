@@ -9,7 +9,6 @@
 #include "geometry_msgs/Twist.h"     // du msg
 #include "geometry_msgs/Vector3Stamped.h"   // encoder and RPY msg
 
-void pidW(vec w, float du[], float dt);
 /**************************************************************************************************
  *
 **************************************************************************************************/
