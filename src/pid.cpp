@@ -155,7 +155,18 @@ void* controlThread(void *data)
       // map du to rotor commands ----------------------------------------------------------------
       float uPWM[4];
       nav.map(data_->du, min, max, uPWM);
+      //du[i] = sat(du[i], du_min[i], du_max[i]);
 
+      float dz = nav.sat(data_->du[0], 0.0, 2000.0) / 4.0;
+      float dr = nav.sat(data_->du[1],-400.0, 400.0) / 2.0;
+      float dp = nav.sat(data_->du[2],-400.0, 400.0) / 2.0;
+      float dw = nav.sat(data_->du[3],-400.0, 400.0) / 4.0;
+
+      // du to PWM
+      uPWM[0] = dz - dp - dw;
+      uPWM[1] = dz - dr + dw;
+      uPWM[2] = dz + dp - dw;
+      uPWM[3] = dz + dr + dw;
       // rotor control ---------------------------------------------------------------------------
       float r[4];
       for (int i=0; i<4 ; i++)

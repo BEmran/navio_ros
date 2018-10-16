@@ -123,11 +123,6 @@ public:
     for (int i=0; i<4; i++)
       _pwm->set_duty_cycle(_ch[i], _PWM_MIN);
   }
-
-private:
-  PWM* _pwm;
-  float _ch[4];
-  float _scale[4];
   /*****************************************************************************************
    sat: apply saturation
   *****************************************************************************************/
@@ -138,6 +133,11 @@ private:
       x = upper;
     return x;
   }
+private:
+  PWM* _pwm;
+  float _ch[4];
+  float _scale[4];
+
 };
 #endif // NAVIO_INTERFACE
 
