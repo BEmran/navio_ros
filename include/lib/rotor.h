@@ -22,8 +22,8 @@ public:
     Wdes = Wdes * (1.0/10000.0) * (60.0/2.0/3.14); // Scalling from RPM to 1e-4*RPM to rad/sec
 
     // Applay pid control
-    float u = _pid.update(x[0], Wdes, 0.0, 2.2, dt);
-
+    //float u = _pid.update(x[0], Wdes, 0.0, 2.2, dt);
+    float u = Wdes;
     // PWM signal conditioning
     vec input = {signalConditioning(u)};
 
