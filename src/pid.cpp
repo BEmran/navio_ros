@@ -162,7 +162,7 @@ void* controlThread(void *data)
       //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
 
       // send PWM
-      setPWMDuty(pwm, r);
+      setPWMDuty(pwm, uPWM);
     }
     else{
       float r[4] ={0, 0, 0, 0};
