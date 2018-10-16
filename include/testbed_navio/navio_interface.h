@@ -19,33 +19,126 @@ Header files
 /*****************************************************************************************
 Global variables
 ******************************************************************************************/
-#define _MOTOR1 0       // CH0 front motor
-#define _MOTOR2 1       // CH1 right motor
-#define _MOTOR3 2       // CH2 back motor
-#define _MOTOR4 3       // CH3 left motor
+#define _MOTOR_FRONT 0                // Channel# for front motor
+#define _MOTOR_RIGHT 1                // Channel# for right motor
+#define _MOTOR_RARE 2                 // Channel# for rare motor
+#define _MOTOR_LEFT 3                 // Channel# for left motor
 
-#define _SERVO_MIN 0.85  // PWM duty cycle in mS
-#define _SERVO_MAX 2.0  // PWM duty cycle in mS
-#define _FREQ   50      // PWM period in Hz
-#define _SERVO_OFFSET0 0.15
-#define _SERVO_OFFSET1 0.15
-#define _SERVO_OFFSET2 0.15
-#define _SERVO_OFFSET3 0.15
-#define _SERVO_SCALE0 1.03
-#define _SERVO_SCALE1 1
-#define _SERVO_SCALE2 0.98
-#define _SERVO_SCALE3 1
+#define _PWM_MIN 0.85                 // PWM duty cycle in mS
+#define _PWM_MAX 2.0                  // PWM duty cycle in mS
+#define _FREQ   50                    // PWM period in Hz
+
+#define _PWM_OFFSET 0.15              // PWM offset value
+#define _PWM_SCALE_MOTOR_FRONT 1.03   // PWM scale value for front motor
+#define _PWM_SCALE_MOTOR_RIGHT 1      // PWM scale value for right motor
+#define _PWM_SCALE_MOTOR_RARE 0.98    // PWM scale value for rare motor
+#define _PWM_SCALE_MOTOR_LEFT 1       // PWM scale value for left motor
 
 /*****************************************************************************************
 Functions prototype
 ******************************************************************************************/
-void initializePWM(PWM* pwm, float init_val = _SERVO_MIN);
-void du2motor(PWM* pwm, float du[4], float offset[4], float du_min[4], float du_max[4]);
-void setPWMDuty(PWM* pwm, float uPWM[4]);
-void setFullPWM(PWM* pwm);
-void setOffPWM(PWM* pwm);
-float sat(float x, float lower, float upper);
-void Quaternion2Euler(float& roll, float& pitch, float& yaw, float q0, float q1, float q2, float q3);
 
+class Navio{
+public:
+  Navio(){
+    _ch[0] = _MOTOR_FRONT;
+    _ch[1] = _MOTOR_RIGHT;
+    _ch[2] = _MOTOR_RARE;
+    _ch[3] = _MOTOR_LEFT;
+    _scale[0] = _PWM_SCALE_MOTOR_FRONT;
+    _scale[1] = _PWM_SCALE_MOTOR_RIGHT;
+    _scale[2] = _PWM_SCALE_MOTOR_RARE;
+    _scale[3] = _PWM_SCALE_MOTOR_LEFT;
+  }
+  ~Navio(){}
+  /*****************************************************************************************
+   initializePWM: Initialize PWM object used in Navio2 board
+  *****************************************************************************************/
+  void initializePWM(float init_val = _PWM_MIN) {
+    for (int i=0; i<4; i++){
+      // initialize pwm channels
+      _pwm->init(_ch[i]);
+      // set period to _FREQ = 50;
+      _pwm->set_period(_ch[i], _FREQ);
+      // set initiale duty cycle to minimum == motor off
+      _pwm->set_duty_cycle(_ch[i], init_val);
+      // enable pwm channels
+      _pwm->enable(_ch[i]);
+    }
+  }
+  /**************************************************************************************************
+   du2motor: map du to PWM and send signal to motors
+   **************************************************************************************************/
+  void map(float du[4], float du_min[4], float du_max[4], float uPWM[4]) {
+    // apply saturation for du
+    for (int i=0; i<4; i++)
+      du[i] = sat(du[i], du_min[i], du_max[i]);
+
+    float dz = du[0] / 4.0;
+    float dr = du[1] / 2.0;
+    float dp = du[2] / 2.0;
+    float dw = du[3] / 4.0;
+
+    // du to PWM
+    uPWM[0] = dz - dp - dw;
+    uPWM[1] = dz - dr + dw;
+    uPWM[2] = dz + dp - dw;
+    uPWM[3] = dz + dr + dw;
+  }
+  /**************************************************************************************************
+   du2motor: map du to PWM and send signal to motors
+   **************************************************************************************************/
+  void mapAndSend(float du[4], float du_min[4], float du_max[4], float uPWM[4]) {
+    // apply mapping
+    map(du, du_min, du_max, uPWM);
+
+    // send PWM duty cycle
+    send(uPWM);
+  }
+  /*****************************************************************************************
+   setPWMADuty: send PWM signal to motor
+  *****************************************************************************************/
+  void send(float uPWM[4]) {
+    // set PWM duty
+    for (int i=0; i<4; i++){
+      // add minmum PWM value and apply saturation for PWM
+      float tmp = sat(uPWM[i]*_scale[i] + _PWM_MIN + _PWM_OFFSET, _PWM_MIN, _PWM_MAX);
+      // set PWM duty
+      _pwm->set_duty_cycle(_ch[i], tmp);
+    }
+  }
+  /*****************************************************************************************
+   setFullPWM: send maximum PWM signals to motor
+  *****************************************************************************************/
+  void setFullPWM() {
+    // set PWM duty
+    for (int i=0; i<4; i++)
+      _pwm->set_duty_cycle(_ch[i], _PWM_MAX);
+  }
+  /*****************************************************************************************
+   setOffPWM: send minimum PWM signals to motor
+  *****************************************************************************************/
+  void setOffPWM() {
+    // set PWM duty
+    for (int i=0; i<4; i++)
+      _pwm->set_duty_cycle(_ch[i], _PWM_MIN);
+  }
+  /*****************************************************************************************
+   sat: apply saturation
+  *****************************************************************************************/
+  float sat(float x, float lower, float upper) {
+    if (x <= lower)
+      x = lower;
+    else if (x >= upper)
+      x = upper;
+    return x;
+  }
+private:
+  PWM* _pwm;
+  float _ch[4];
+  float _scale[4];
+
+};
 #endif // NAVIO_INTERFACE
+
 

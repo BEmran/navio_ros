@@ -96,10 +96,9 @@ void ctrlCHandler(int signal);
 struct dataStruct {
   bool is_rosnode_ready;
   float ang[3];
-  RosNode *rosnode;
-  Rotor rotors[4];
-  PID Wpid[3], Apid[3];
-  ODE Wdyn[3];
+  float ang_cmd[3];
+  float du[4];
+  float du_cmd[4];
   float W[3];
 };
 /**************************************************************************************************
@@ -111,19 +110,25 @@ void* controlThread(void *data)
   printf("Start Control thread\n");
   struct dataStruct *data_;
   data_ = (struct dataStruct *) data;
-  PWM *pwm;
-  initializePWM(pwm, 0);
+
+  Navio nav;
+  nav.initializePWM(0);
+
   float freq = 100;
   TimeSampling ts(freq);
-  for (int i=0; i<4 ; i++){
-    data_->rotors[i] = Rotor();
-  }
+
+  Rotor rotors[4];
+  PID Wpid[3];
+  PID Apid[3];
   for (int i=0; i<3 ; i++){
-    data_->Wpid[i] = PID();
-    data_->Apid[i] = PID();
-    data_->Wpid[i].setGains(400.0, 200.0, 0, 2);
-    data_->Apid[i].setGains( 5.0,  3.0, 0, 0.1);
+    Wpid[i].setGains(400.0, 200.0, 0, 2);
+    Apid[i].setGains( 5.0,  3.0, 0, 0.1);
   }
+    Wpid[2].setGains(800.0, 500.0, 0, 2);
+    // du max and minimum values
+  float min[] = {   0.0, -400.0, -400.0, -400.0};
+  float max[] = {2000.0, +400.0, +400.0, +400.0};
+
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
   while (!_CloseRequested)
@@ -133,40 +138,31 @@ void* controlThread(void *data)
     if (data_->is_rosnode_ready)
     {
       float du[4];
-
-      du[0] = data_->rosnode->_du[0];
-      du[3] = data_->rosnode->_du[3];
-      for (int i=0; i<2 ; i++){
-          float tmp = data_->Apid[i].update(data_->ang[i], data_->rosnode->_ang[i],  -2.0,   2.0, dt);
-            du[i+1] = data_->Wpid[i].update(  data_->W[i],                     tmp,-400.0, 400.0, dt);
+      du[0] = data_->du_cmd[0];
+      //du[3] = data_->du_cmd[3];
+      for (int i=0; i<3 ; i++){
+          float tmp = Apid[i].update(data_->ang[i], data_->ang_cmd[i],  -2.0,   2.0, dt);
+            du[i+1] = Wpid[i].update(data_->W[i],                 tmp,-400.0, 400.0, dt);
       }
-      float dz = sat(du[0],    0.0, 2000.0) / 4.0;
-      float dr = sat(du[1], -400.0,  400.0) / 2.0;
-      float dp = sat(du[2], -400.0,  400.0) / 2.0;
-      float dw = sat(du[3], -400.0,  400.0) / 4.0;
 
-      float msg[3] = {dr, dp, dw};
-      data_->rosnode->publishDuMsg(msg);
-
-      // du to PWM
       float uPWM[4];
-      uPWM[0] = dz - dp - dw;
-      uPWM[1] = dz - dr + dw;
-      uPWM[2] = dz + dp - dw;
-      uPWM[3] = dz + dr + dw;
+      nav.map(du, min, max, uPWM);
 
       // rotor control
       float r[4];
       for (int i=0; i<4 ; i++)
-        r[i] = data_->rotors[i].update(uPWM[i], 1.0/freq);
-      //float tmp[3] = {data_->rosnode->_du[0], res, data_->r1.x[0]};
+        r[i] = rotors[i].update(uPWM[i], 1.0/freq);
 
       // send PWM
-      setPWMDuty(pwm, r);
+      nav.send(r);
+
+      data_->du[0] = du[1];
+      data_->du[1] = du[2];
+      data_->du[2] = du[3];
     }
     else{
       float r[4] ={0, 0, 0, 0};
-      setPWMDuty(pwm, r);
+      nav.send(r);
     }
     // Display info for user every 5 second
     dtsumm += dt;
@@ -177,7 +173,7 @@ void* controlThread(void *data)
   }
 
   // Exit procedure -----------------------------------------------------------------------------
-  setOffPWM(pwm);
+  nav.setOffPWM();
   ctrlCHandler(0);
   printf("Exit control thread\n");
   pthread_exit(NULL);
@@ -191,13 +187,12 @@ void* sensorsThread(void *data)
   printf("Start Sensors thread\n");
   struct dataStruct *data_;
   data_ = (struct dataStruct *) data;
-  PWM *pwm;
-  initializePWM(pwm, 0);
   float freq = 100;
   TimeSampling ts(freq);
   Encoder enc(true);
+  ODE Wdyn[3];
   for(int i=0; i<3; i++)
-    data_->Wdyn[i] = ODE(1, dynFilter);
+    Wdyn[i] = ODE(1, dynFilter);
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0, dtsumEnc = 0;
   while (!_CloseRequested)
@@ -205,15 +200,11 @@ void* sensorsThread(void *data)
     // calculate sampling time
     dt = ts.updateTs();
 
-    // read encoder and convert it to radian
-    //enc.updateCounts();
-    //enc.readAnglesRad(data_->ang);
-
     //
     vec empty;
     for(int i=0; i<3; i++){
       vec ang_vec = {data_->ang[i]};
-      vec tmp = data_->Wdyn[i].update(ang_vec,empty,1.0/freq);
+      vec tmp = Wdyn[i].update(ang_vec,empty,1.0/freq);
       data_->W[i] = tmp[0];
     }
     dtsumEnc += dt;
@@ -224,6 +215,7 @@ void* sensorsThread(void *data)
       enc.readAnglesRad(data_->ang);
       data_->ang[0] = -data_->ang[0];
       data_->ang[1] = -data_->ang[1];
+      data_->ang[2] = -data_->ang[2];
     }
     // Display info for user every 5 second
     dtsumm += dt;
@@ -261,7 +253,7 @@ int main(int argc, char** argv)
   printf("initiate ros node\n");
   ros::init(argc, argv, "control_test");
   ros::NodeHandle nh;
-  data.rosnode = new RosNode (nh, "control_test");
+  RosNode rosnode(nh, "control_test");
   float freq = 50;
   ros::Rate loop_rate(freq);
   // ----------------------------------------------------------------------------------------------
@@ -275,8 +267,13 @@ int main(int argc, char** argv)
   // Main loop ----------------------------------------------------------------------------------
   while (ros::ok()){
     //publish encoders' angle
-    data.rosnode->publishAngMsg(data.ang);
-    data.rosnode->publishWMsg(data.W);
+    rosnode.publishAngMsg(data.ang);
+    rosnode.publishWMsg(data.W);
+    rosnode.publishDuMsg(data.du);
+    for (int i=0; i<4; i++)
+      data.du_cmd[i] = rosnode._du[i];
+    for (int i=0; i<3; i++)
+      data.ang_cmd[i] = rosnode._ang[i];
     ros::spinOnce();
     loop_rate.sleep();
   }
