@@ -30,7 +30,6 @@ include_directories(
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
-  include/${PROJECT_NAME}/navio_interface.cpp
   include/${PROJECT_NAME}/ros_node.cpp
   include/lib/TimeSampling.cpp
   include/lib/Encoder.cpp
@@ -69,7 +68,7 @@ link_directories(
 
 add_executable(pid src/pid.cpp)
 target_link_libraries(pid ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
-add_executable(control_test src/control_test.cpp)
-target_link_libraries(control_test ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
+#add_executable(control_test src/control_test.cpp)
+#target_link_libraries(control_test ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)
 add_executable(repeter src/repeter.cpp)
 target_link_libraries(repeter ${catkin_LIBRARIES} ${PROJECT_NAME} phidget22 libnavio.a)

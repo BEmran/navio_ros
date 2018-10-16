@@ -25,7 +25,6 @@ Global variables
 #define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
 pthread_t _Thread_Sensors;
-pthread_t _Thread_RosNode;
 pthread_t _Thread_Control;
 
 bool _CloseRequested = false;
@@ -45,21 +44,18 @@ struct controlStruct {
 struct dataStruct {
   bool is_mainfun_ready;
   bool is_control_ready;
-  bool is_rosnode_ready;
   bool is_sensors_ready;
 
   float du[4];                // output PWM signal
   int enc_dir[3];
   float enc_ang_bias[3];
   float pwm_offset[4];
-  float record[25];           // stored data to print each samplig time
   float enc_angle[3];         // store encoder angle in rad
   float rpy[3];
   float quat[4];
   float du_max[4], du_min[4]; // maximum and minimum du values
   float info[5];              // extra information to be recorded
   vec w;
-  ODE wSys;
 
   FILE *file;
 
@@ -79,7 +75,7 @@ Functions prototype
 dataStruct* mainInitialize(int argc, char** argv);
 void ctrlCHandler(int signal);
 void *sensorsThread(void *data);
-void *rosNodeThread(void *data);
+void loop(dataStruct *data);
 void *controlThread(void *data);
 void initializeParams(ros::NodeHandle& n, dataStruct* data);
 void printRecord(FILE* file, float data[]);
@@ -88,11 +84,11 @@ vec diffDyn(vec& x, vec& xdot, vec& u, vec& par);
 /**************************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
 **************************************************************************************************/
-
 void ctrlCHandler(int signal) {
   _CloseRequested = true;
   printf("Ctrl+c have been detected\n");
 }
+
 /**************************************************************************************************
  mainInitialize: main initialization
 **************************************************************************************************/
@@ -109,21 +105,13 @@ dataStruct* mainInitialize(int argc, char** argv)
   data->argv = argv;
   data->is_mainfun_ready = false;
   data->is_control_ready = false;
-  data->is_rosnode_ready = false;
   data->is_sensors_ready = false;
 
-  data->wSys = ODE(3, *diffDyn);
   data->w.push_back(0); data->w.push_back(0); data->w.push_back(0);
-
-  TimeSampling st(_MAINFUN_FREQ);
-  for (int i = 0; i < 25; ++i) {
-    data->record[i] = 0.0;       // initialize record data with zeros
-  }
 
   // Start threads ----------------------------------------------------------
   pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
   pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
-  //pthread_create(&_Thread_Rosnode, NULL, rosnodeThread, (void *) &data);
 
   // Create new record file -------------------------------------------------
   char file_name[64];
@@ -152,13 +140,13 @@ dataStruct* mainInitialize(int argc, char** argv)
 
   // Print data header
   fprintf(data->file, "time,"
-                     "ax,ay,az,"
-                     "gx,gy,gz,"
-                     "mx,my,mz,"
-                     "enc0,enc1,enc2,"
-                     "roll,pitch,yaw,"
-                     "ur,up,uw,uz,"
-                     "d0,d1,d2,d3,d4\n");
+                      "ax,ay,az,"
+                      "gx,gy,gz,"
+                      "mx,my,mz,"
+                      "enc0,enc1,enc2,"
+                      "roll,pitch,yaw,"
+                      "ur,up,uw,uz,"
+                      "d0,d1,d2,d3,d4\n");
 
   // Initialize ROS -----------------------------------------------------------
   while(!data->is_sensors_ready);                 // wait for sensor thread to be ready
@@ -292,34 +280,6 @@ void *sensorsThread(void *data) {
     vec p{50,50,50};
     my_data->w = my_data->wSys.update(enc_angle_tmp, p, 0.005);
 
-    // Update record values
-    my_data->record[1] = my_data->sensors->imu.ax;
-    my_data->record[2] = my_data->sensors->imu.ay;
-    my_data->record[3] = my_data->sensors->imu.az;
-    my_data->record[4] = my_data->sensors->imu.gx;
-    my_data->record[5] = my_data->sensors->imu.gy;
-    my_data->record[6] = my_data->sensors->imu.gz;
-    my_data->record[7] = my_data->sensors->imu.mx;
-    my_data->record[8] = my_data->sensors->imu.my;
-    my_data->record[9] = my_data->sensors->imu.mz;
-    my_data->record[10] = my_data->enc_angle[0];
-    my_data->record[11] = my_data->enc_angle[1];
-    my_data->record[12] = my_data->enc_angle[2];
-    my_data->record[13] = my_data->rpy[0];
-    my_data->record[14] = my_data->rpy[1];
-    my_data->record[15] = my_data->rpy[2];
-    my_data->record[16] = my_data->du[0];
-    my_data->record[17] = my_data->du[1];
-    my_data->record[18] = my_data->du[2];
-    my_data->record[19] = my_data->du[3];
-    my_data->record[20] = my_data->info[0];
-    my_data->record[21] = my_data->info[1];
-    my_data->record[22] = my_data->info[2];
-    my_data->record[23] = my_data->info[3];
-    my_data->record[24] = my_data->info[4];
-    // Record data in a file
-    printRecord(my_data->file, my_data->record);
-
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5) {
@@ -335,52 +295,24 @@ void *sensorsThread(void *data) {
 }
 
 /**************************************************************************************************
- rosNodeThread: ROS Node thread
+ loop: Common function runs through main loop
 **************************************************************************************************/
-void *rosNodeThread(void *data) {
-
-  // Initialize ros node thread -----------------------------------------------------------------
-  printf("Start ROS Node thread\n");
-
-  // Initialize mapping data
-  struct dataStruct *my_data;
-  my_data = (struct dataStruct *) data;
-
-  // Initialize ROS
-  while(!my_data->is_sensors_ready);              // wait for sensor thread to be ready
-  string name = "testbed_navio";                  // define ros node name
-  ros::init(my_data->argc, my_data->argv, name);  // initialize ros
-  ros::NodeHandle nh;                             // define ros handle
-  my_data->rosnode = new RosNode (nh,name);       // define RosNode object
-  ros::Rate loop_rate(_ROSNODE_FREQ);             // define ros frequency
-  initializeParams(nh, my_data);                  // initialize ros parameter
-
-  printf("ros is ready\n");
-  my_data->is_rosnode_ready = true;
+void *loop(dataStruct* data) {
 
   // Main loop ----------------------------------------------------------------------------------
-  while (ros::ok() && !_CloseRequested)
-  {
-    float gyro[3]= {my_data->sensors->imu.gx,my_data->sensors->imu.gy,my_data->sensors->imu.gz};
-    float acc[3]= {my_data->sensors->imu.ax,my_data->sensors->imu.ay,my_data->sensors->imu.az};
-    float mag[3]= {my_data->sensors->imu.mx,my_data->sensors->imu.my,my_data->sensors->imu.mz};
-    float a[3]={1,2,3};
-    float b[4]={4,5,6,7};
-    my_data->rosnode->publishAllMsgs(gyro,
-                                     acc,
-                                     my_data->quat,
-                                     mag,
-                                     my_data->enc_angle,
-                                     my_data->rpy,
-                                     my_data->du);
-    ros::spinOnce();
-    loop_rate.sleep();
-  }
+  float gyro[3]= {data->sensors->imu.gx,data->sensors->imu.gy,data->sensors->imu.gz};
+  float acc[3]= {data->sensors->imu.ax,data->sensors->imu.ay,data->sensors->imu.az};
+  float mag[3]= {data->sensors->imu.mx,data->sensors->imu.my,data->sensors->imu.mz};
+  data->rosnode->publishAllMsgs(gyro,
+                                acc,
+                                data->quat,
+                                mag,
+                                data->enc_angle,
+                                data->rpy,
+                                data->du);
+  // Update record values
+  printRecord(data);
 
-  // Exit procedure -----------------------------------------------------------------------------
-  ctrlCHandler(0);
-  printf("Exit ROS Node thread\n");
-  pthread_exit(NULL);
 }
 
 /**************************************************************************************************
@@ -529,8 +461,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
 /**************************************************************************************************
 printRecord: print recorded data in a file
 **************************************************************************************************/
-void printRecord(FILE* file, float data[]){
+void printRecord(dataStruct* data){
   int size = 25;          // record data 0-24
+  float record[size];
   // Timing data
   struct timeval tv;
 
@@ -541,15 +474,41 @@ void printRecord(FILE* file, float data[]){
   // Calculate delta time
   gettimeofday(&tv, NULL);
   long tmp = 1000000L * tv.tv_sec + tv.tv_usec;
-  data[0] = tmp / 1000000.0;
+  record[0] = tmp / 1000000.0;
+
+  // update value
+  record[1] = data->sensors->imu.ax;
+  record[2] = data->sensors->imu.ay;
+  record[3] = data->sensors->imu.az;
+  record[4] = data->sensors->imu.gx;
+  record[5] = data->sensors->imu.gy;
+  record[6] = data->sensors->imu.gz;
+  record[7] = data->sensors->imu.mx;
+  record[8] = data->sensors->imu.my;
+  record[9] = data->sensors->imu.mz;
+  record[10] = data->enc_angle[0];
+  record[11] = data->enc_angle[1];
+  record[12] = data->enc_angle[2];
+  record[13] = data->rpy[0];
+  record[14] = data->rpy[1];
+  record[15] = data->rpy[2];
+  record[16] = data->du[0];
+  record[17] = data->du[1];
+  record[18] = data->du[2];
+  record[19] = data->du[3];
+  record[20] = data->info[0];
+  record[21] = data->info[1];
+  record[22] = data->info[2];
+  record[23] = data->info[3];
+  record[24] = data->info[4];
 
   // get data stored in data array
   for (int i = 0; i < size; ++i) {
-    pos += sprintf(pos, "%+9.3f, ", data[i]);
+    pos += sprintf(pos, "%+9.3f, ", record[i]);
   }
 
   // print collected data
-  fprintf(file, "%s\n", buf);
+  fprintf(data->file, "%s\n", buf);
   //printf("%s\n", buf);
 }
 
