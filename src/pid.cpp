@@ -95,10 +95,8 @@ bool _CloseRequested = false;
 void ctrlCHandler(int signal);
 struct dataStruct {
   bool is_rosnode_ready;
-  float ang[3];
-  float ang_cmd[3];
-  float du[4];
-  float du_cmd[4];
+  float du[3], ang[3];
+  float du_cmd[4], ang_cmd[3];
   float W[3];
 };
 /**************************************************************************************************
@@ -117,7 +115,6 @@ void* controlThread(void *data)
   float freq = 100;
   TimeSampling ts(freq);
 
-  Rotor rotors[4];
   PID Wpid[3];
   PID Apid[3];
   for (int i=0; i<3 ; i++){
@@ -138,27 +135,15 @@ void* controlThread(void *data)
     if (data_->is_rosnode_ready)
     {
       float du[4];
-      du[0] = data_->du_cmd[0];
+      data_->du[0] = data_->du_cmd[0];
       //du[3] = data_->du_cmd[3];
       for (int i=0; i<3 ; i++){
           float tmp = Apid[i].update(data_->ang[i], data_->ang_cmd[i],  -2.0,   2.0, dt);
             du[i+1] = Wpid[i].update(data_->W[i],                 tmp,-400.0, 400.0, dt);
       }
-
-      float uPWM[4];
-      nav.map(du, min, max, uPWM);
-
-      // rotor control
-      float r[4];
-      for (int i=0; i<4 ; i++)
-        r[i] = rotors[i].update(uPWM[i], 1.0/freq);
-
-      // send PWM
-      nav.send(r);
-
-      data_->du[0] = du[1];
-      data_->du[1] = du[2];
-      data_->du[2] = du[3];
+      //send to motor
+      nav.toMotor(du, min, max, 1/freq);
+      data_->du = du;
     }
     else{
       float r[4] ={0, 0, 0, 0};
@@ -202,21 +187,23 @@ void* sensorsThread(void *data)
 
     //
     vec empty;
+
     for(int i=0; i<3; i++){
       vec ang_vec = {data_->ang[i]};
       vec tmp = Wdyn[i].update(ang_vec,empty,1.0/freq);
       data_->W[i] = tmp[0];
     }
+
     dtsumEnc += dt;
     if (dtsumEnc > 0.01){
       dtsumEnc = 0;
       // read encoder and convert it to radian
       enc.updateCounts();
       enc.readAnglesRad(data_->ang);
-      data_->ang[0] = -data_->ang[0];
-      data_->ang[1] = -data_->ang[1];
-      data_->ang[2] = -data_->ang[2];
+      for(int i=0; i<3; i++)
+        data_->ang[i] = -data_->ang[i];
     }
+
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5) {

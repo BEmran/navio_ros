@@ -12,6 +12,7 @@ Header files
 ******************************************************************************************/
 #include "../lib/Sensors.h"
 #include "../lib/Encoder.h"
+#include "../lib/rotor.h"
 #include "../lib/Navio/Common/Util.h"  // Navio Utility
 #include "../lib/Navio/Navio2/PWM.h"   // Navio PWM output
 #include "cmath"
@@ -86,26 +87,21 @@ public:
     uPWM[3] = dz + dr + dw;
   }
   /**************************************************************************************************
-   du2motor: map du to PWM and send signal to motors
+   toMotor: map du to PWM and send signal to motors
    **************************************************************************************************/
-  void mapAndSend(float du[4], float du_min[4], float du_max[4], float uPWM[4]) {
+  void toMotor(float du[4], float du_min[4], float du_max[4], float dt) {
+    float uPWM[4];
+
     // apply mapping
     map(du, du_min, du_max, uPWM);
 
+    // rotor control
+    float duty[4];
+    for (int i=0; i<4 ; i++)
+      duty[i] = _rotors[i].update(uPWM[i], dt);
+
     // send PWM duty cycle
-    send(uPWM);
-  }
-  /*****************************************************************************************
-   setPWMADuty: send PWM signal to motor
-  *****************************************************************************************/
-  void send(float uPWM[4]) {
-    // set PWM duty
-    for (int i=0; i<4; i++){
-      // add minmum PWM value and apply saturation for PWM
-      float tmp = sat(uPWM[i]*_scale[i] + _PWM_MIN + _PWM_OFFSET, _PWM_MIN, _PWM_MAX);
-      // set PWM duty
-      _pwm->set_duty_cycle(_ch[i], tmp);
-    }
+    send(duty);
   }
   /*****************************************************************************************
    setFullPWM: send maximum PWM signals to motor
@@ -123,6 +119,24 @@ public:
     for (int i=0; i<4; i++)
       _pwm->set_duty_cycle(_ch[i], _PWM_MIN);
   }
+
+private:
+  Rotor _rotors[4];
+  PWM* _pwm;
+  float _ch[4];
+  float _scale[4];
+  /*****************************************************************************************
+   setPWMADuty: send PWM signal to motor
+  *****************************************************************************************/
+  void send(float uPWM[4]) {
+    // set PWM duty
+    for (int i=0; i<4; i++){
+      // add minmum PWM value and apply saturation for PWM
+      float tmp = sat(uPWM[i]*_scale[i] + _PWM_MIN + _PWM_OFFSET, _PWM_MIN, _PWM_MAX);
+      // set PWM duty
+      _pwm->set_duty_cycle(_ch[i], tmp);
+    }
+  }
   /*****************************************************************************************
    sat: apply saturation
   *****************************************************************************************/
@@ -133,11 +147,6 @@ public:
       x = upper;
     return x;
   }
-private:
-  PWM* _pwm;
-  float _ch[4];
-  float _scale[4];
-
 };
 #endif // NAVIO_INTERFACE
 
