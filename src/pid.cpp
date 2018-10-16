@@ -14,8 +14,8 @@
 **************************************************************************************************/
 vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
   vec y(x.size());
-    xdot[0] =        - 50.0 * x[0] +    1 * u[0];
-    y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
+  xdot[0] =        - 50.0 * x[0] +    1 * u[0];
+  y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
   return y;
 }
 /**************************************************************************************************
@@ -95,7 +95,7 @@ bool _CloseRequested = false;
 void ctrlCHandler(int signal);
 struct dataStruct {
   bool is_rosnode_ready;
-  float du[3], ang[3];
+  float du[4], ang[3];
   float du_cmd[4], ang_cmd[3];
   float W[3];
 };
@@ -121,11 +121,11 @@ void* controlThread(void *data)
     Wpid[i].setGains(400.0, 200.0, 0, 2);
     Apid[i].setGains( 5.0,  3.0, 0, 0.1);
   }
-    Wpid[2].setGains(800.0, 500.0, 0, 2);
-    // du max and minimum values
+  Wpid[2].setGains(800.0, 500.0, 0, 2);
+  // du max and minimum values
   float min[] = {   0.0, -400.0, -400.0, -400.0};
   float max[] = {2000.0, +400.0, +400.0, +400.0};
-
+  float du[4] ={0, 0, 0, 0};
   // Main loop ----------------------------------------------------------------------------------
   float dt, dtsumm = 0;
   while (!_CloseRequested)
@@ -134,21 +134,18 @@ void* controlThread(void *data)
     dt = ts.updateTs();
     if (data_->is_rosnode_ready)
     {
-      float du[4];
       data_->du[0] = data_->du_cmd[0];
       //du[3] = data_->du_cmd[3];
       for (int i=0; i<3 ; i++){
-          float tmp = Apid[i].update(data_->ang[i], data_->ang_cmd[i],  -2.0,   2.0, dt);
-            du[i+1] = Wpid[i].update(data_->W[i],                 tmp,-400.0, 400.0, dt);
+        float tmp = Apid[i].update(data_->ang[i], data_->ang_cmd[i],  -2.0,   2.0, dt);
+        data_->du[i+1] = Wpid[i].update(data_->W[i],                 tmp,-400.0, 400.0, dt);
       }
       //send to motor
-      nav.toMotor(du, min, max, 1/freq);
-      data_->du = du;
+      nav.toMotor(data_->du, min, max, 1/freq);
     }
-    else{
-      float r[4] ={0, 0, 0, 0};
-      nav.send(r);
-    }
+    else
+      nav.send(du);
+
     // Display info for user every 5 second
     dtsumm += dt;
     if (dtsumm > 5) {
