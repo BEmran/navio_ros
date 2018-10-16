@@ -182,23 +182,19 @@ void* sensorsThread(void *data)
     // calculate sampling time
     dt = ts.updateTs();
 
-    //
-    vec empty;
-
-    for(int i=0; i<3; i++){
-      vec ang_vec = {data_->ang[i]};
-      vec tmp = Wdyn[i].update(ang_vec,empty,1.0/freq);
-      data_->W[i] = tmp[0];
-    }
-
     dtsumEnc += dt;
     if (dtsumEnc > 0.01){
       dtsumEnc = 0;
       // read encoder and convert it to radian
       enc.updateCounts();
       enc.readAnglesRad(data_->ang);
-      for(int i=0; i<3; i++)
+      // differentiate encoder data
+      for(int i=0; i<3; i++){
         data_->ang[i] = -data_->ang[i];
+        vec ang_vec = {data_->ang[i]};
+        vec tmp = Wdyn[i].update(ang_vec,0.01);
+        data_->W[i] = tmp[0];
+      }
     }
 
     // Display info for user every 5 second

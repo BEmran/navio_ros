@@ -55,6 +55,8 @@ public:
   // get xdot vector value
   vec getXdot(void) const;
   // main method, applies deferential equations and integrations
+  vec update(vec& u, float dt = DT);
+  // main method, applies deferential equations and integrations
   vec update(vec& u, vec& par, float dt = DT);
   // main method applies deferential equations and returns xdot
   vec update(vec& u, vec& xdot, vec& par, float dt = DT);

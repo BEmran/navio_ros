@@ -3,116 +3,50 @@
  * Author: Bara Emran
  * Created on March 14, 2018
  */
-#include "testbed_navio/testbed.h"
-/******************************************************************************
+#include "../include/testbed_navio/testbed.h"
+/**************************************************************************************************
 main: Run main function
-******************************************************************************/
+**************************************************************************************************/
 int main(int argc, char** argv) {
+  // Initialization -------------------------------------------------------------------------------
+  dataStruct* data = mainInitialize(argc, argv);
 
-    // Welcome msg ------------------------------------------------------------
-    printf("Start Program...\n");
-    // conncet ctrl+c Handler
-    signal(SIGINT, ctrlCHandler);
+  // Main loop ------------------------------------------------------------------------------------
+  ros::Rate loop_rate(_MAINFUN_FREQ);
+  while (ros::ok() && !_CloseRequested)
+  {
+    loop(data);
+    ros::spinOnce();
+    loop_rate.sleep();
+  }
 
-    // Define main variables --------------------------------------------------
-    struct dataStruct data;
-    data.argc = argc;
-    data.argv = argv;
-    data.is_mainfun_ready = false;
-    data.is_control_ready = false;
-    data.is_rosnode_ready = false;
-    data.is_sensors_ready = false;
-    TimeSampling st(_MAINFUN_FREQ);
-    for (int i = 0; i < 25; ++i) {
-        data.record[i] = 0.0;       // initialize record data with zeros
-    }
-
-    // Start threads ----------------------------------------------------------
-    pthread_create(&_Thread_RosNode, NULL, rosNodeThread, (void *) &data);
-    pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
-    pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
-
-    // Create new record file -------------------------------------------------
-    char file_name[64];
-    int fileNumber = 0;
-    // find avaliable file name & number
-    do {
-        sprintf(file_name, "/home/pi/testbed_data_%.2d.csv", fileNumber++);
-    } while (access(file_name, F_OK) == 0);
-    // open avaliable file
-    data.file = fopen(file_name, "w");
-    // check file
-    if (data.file == NULL) {
-        printf("Error creating file!\n");
-        exit(1);
-    }
-
-    // Display Information for user
-    printf("A file successfully created to record testbed data\n");
-    printf("Record file path and name: %s\n",file_name);
-
-    // Record starting time of test -------------------------------------------
-    time_t rawtime;
-    time (&rawtime);
-    struct tm * timeinfo = localtime (&rawtime);
-    fprintf(data.file,"Current local time and date: %s", asctime(timeinfo));
-
-    // Print data header
-    fprintf(data.file, "time,"
-                       "ax,ay,az,"
-                       "gx,gy,gz,"
-                       "mx,my,mz,"
-                       "enc0,enc1,enc2,"
-                       "roll,pitch,yaw,"
-                       "ur,up,uw,uz,"
-                       "d0,d1,d2,d3,d4\n");
-
-    // Wait for user to be ready ----------------------------------------------
-    while(!data.is_rosnode_ready || !data.is_control_ready || !data.is_sensors_ready);
-    int x = 0;
-    while (x == 0) {
-        printf("Enter 1 to start control\n");
-        cin >> x;
-        sleep(1);
-    }
-    data.is_mainfun_ready = true;
-
-    // Main loop --------------------------------------------------------------
-    float dt, dtsumm = 0;
-    while(!_CloseRequested){
-        dt = st.updateTs();
-        dtsumm += dt;
-        //printf("dt = %f\n",dt);
-        if (dtsumm > 1) {
-            dtsumm = 0;
-            printf("Mainfun thread: running fine with %4d Hz\n", int(1 / dt));
-        }
-    }
-
-    // Exit procedure ---------------------------------------------------------
-    ctrlCHandler(0);
-    printf("Close program\n");
-    return 0;
+  // Exit procedure -------------------------------------------------------------------------------
+  ctrlCHandler(0);
+  printf("Close program\n");
+  return 0;
+  pthread_cancel(_Thread_Sensors);
+  pthread_cancel(_Thread_Control);
 }
 
-/*****************************************************************************************
+/**************************************************************************************************
 control: Perfourm control loop
-******************************************************************************************/
+**************************************************************************************************/
 void control(dataStruct* data, float dt){
+  static PID Wpid[3];
+  static PID Apid[3];
+  static bool init = true;
+  if (init){
+    init = false;
+    for (int i=0; i<3 ; i++){
+      Wpid[i].setGains(400.0, 200.0, 0, 2);
+      Apid[i].setGains( 5.0,  3.0, 0, 0.1);
+    }
+    Wpid[2].setGains(800.0, 500.0, 0, 2);
+  }
 
-    static float ei = 0.0;
-
-    float e = 0.0;
-    float cmd_max = 0.2;
-    float ang = data->enc_angle[0];
-
-    data->du[0] = 0.5;
-    // traking error
-    e = 0.0 - ang;
-    // integration
-    ei += e * dt;
-    // control signal
-    data->du[1] = e * data->angConGain.kp[0] + ei * data->angConGain.ki[0];
-    printf("%2.2f\t %2.2f\t %2.2f\t %2.2f\ty\n",
-           ang, e, data->du[1], ei);
+  data->du[0] = data->du_cmd[0];
+  for (int i=0; i<3 ; i++){
+    float tmp     = Apid[i].update(data->enc_angle[i], data->ang_cmd[i],  -2.0,   2.0, dt);
+    data->du[i+1] = Wpid[i].update(        data->w[i],              tmp,-400.0, 400.0, dt);
+  }
 }

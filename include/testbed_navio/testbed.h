@@ -15,13 +15,13 @@ Header files
 #include <testbed_navio/ros_node.h>         // ros node class
 #include <testbed_navio/navio_interface.h>  // navio interface pwm, sensors ...
 #include "lib/ode.h"
-
+#include "lib/rotor.h"                       // ODE library
+#include "lib/pid.h"
 /**************************************************************************************************
 Global variables
 **************************************************************************************************/
 #define _MAINFUN_FREQ   200   // Main thread frequency in Hz
 #define _SENSORS_FREQ   200   // Sensor thread frequency in Hz
-#define _ROSNODE_FREQ   50    // ROS node thread frequency in Hz
 #define _CONTROL_FREQ   100   // Control thread frequency in Hz
 
 pthread_t _Thread_Sensors;
@@ -48,7 +48,7 @@ struct dataStruct {
   bool is_rosnode_ready;
   bool is_sensors_ready;
 
-  float du[4];                // output PWM signal
+  float ang_cmd[3], du_cmd[4], du[4];     // output PWM signal
   int enc_dir[3];
   float enc_ang_bias[3];
   float pwm_offset[4];
@@ -59,14 +59,11 @@ struct dataStruct {
   float du_max[4], du_min[4]; // maximum and minimum du values
   float info[5];              // extra information to be recorded
   vec w;
-  ODE wSys;
 
   FILE *file;
 
   RosNode* rosnode;
   Sensors* sensors;
-  PWM* pwm;
-  Encoder* encoder;
   controlStruct angConGain;
 
   int argc;
@@ -79,16 +76,15 @@ Functions prototype
 dataStruct* mainInitialize(int argc, char** argv);
 void ctrlCHandler(int signal);
 void *sensorsThread(void *data);
-void *rosNodeThread(void *data);
+void loop(dataStruct *data);
 void *controlThread(void *data);
 void initializeParams(ros::NodeHandle& n, dataStruct* data);
-void printRecord(FILE* file, float data[]);
+void printRecord(dataStruct* data);
 void control(dataStruct* data, float dt);
-vec diffDyn(vec& x, vec& xdot, vec& u, vec& par);
+vec dynFilter(vec& x, vec& xdot, vec& u, vec& par);
 /**************************************************************************************************
  ctrlCHandler: Detect ctrl+c to quit program
 **************************************************************************************************/
-
 void ctrlCHandler(int signal) {
   _CloseRequested = true;
   printf("Ctrl+c have been detected\n");
@@ -109,10 +105,8 @@ dataStruct* mainInitialize(int argc, char** argv)
   data->argv = argv;
   data->is_mainfun_ready = false;
   data->is_control_ready = false;
-  data->is_rosnode_ready = false;
   data->is_sensors_ready = false;
 
-  data->wSys = ODE(3, *diffDyn);
   data->w.push_back(0); data->w.push_back(0); data->w.push_back(0);
 
   TimeSampling st(_MAINFUN_FREQ);
@@ -123,7 +117,6 @@ dataStruct* mainInitialize(int argc, char** argv)
   // Start threads ----------------------------------------------------------
   pthread_create(&_Thread_Control, NULL, controlThread, (void *) &data);
   pthread_create(&_Thread_Sensors, NULL, sensorsThread, (void *) &data);
-  //pthread_create(&_Thread_Rosnode, NULL, rosnodeThread, (void *) &data);
 
   // Create new record file -------------------------------------------------
   char file_name[64];
@@ -168,7 +161,7 @@ dataStruct* mainInitialize(int argc, char** argv)
   data->rosnode = new RosNode (nh,name);          // define RosNode object
   initializeParams(nh, data);                     // initialize ros parameter
 
-  printf("ros is ready\n");
+  printf("main function is ready\n");
 
   // Wait for user to be ready ------------------------------------------------
   while(!data->is_control_ready || !data->is_sensors_ready);
@@ -195,14 +188,10 @@ void *controlThread(void *data) {
 
   // Initialize sampling time
   TimeSampling ts(_CONTROL_FREQ);
-  float dt, dtsumm = 0;
 
   // Initialize PWM
-  initializePWM(my_data->pwm);
-  my_data->du[0] = 0.0;
-  my_data->du[1] = 0.0;
-  my_data->du[2] = 0.0;
-  my_data->du[3] = 0.0;
+  Navio nav;
+  nav.initializePWM(0);
 
   // Announce control thread is ready
   my_data->is_control_ready = true;
@@ -210,23 +199,29 @@ void *controlThread(void *data) {
   // Wait for main function to be ready
   while(!my_data->is_mainfun_ready);
 
+  float min[] = {   0.0, -400.0, -400.0, -400.0};
+  float max[] = {2000.0, +400.0, +400.0, +400.0};
+  float du[4] ={0, 0, 0, 0};
   // Main loop ----------------------------------------------------------------------------------
   printf("control is ready\n");
+  float dt, dtsumm = 0;
   while (!_CloseRequested) {
 
     // calculate sampling time
     dt = ts.updateTs();
 
     // Run control function when sampling is not big
-    if (dt < 0.02) {
+    if (my_data->is_rosnode_ready && dt < 0.02)
+    {
       control(my_data,dt);
-    } else {
+      //send to motor
+      nav.toMotor(my_data->du, min, max, 1/_CONTROL_FREQ);
+    }
+    else{
       printf("Control thread: sampling time is too big = %f\n",dt);
       //TODO: stop control thread for huge sampling time
+      nav.send(du);
     }
-
-    // Send data to motor
-    du2motor(my_data->pwm, my_data->du, my_data->pwm_offset, my_data->du_min, my_data->du_max);
 
     // Display info for user every 5 second
     dtsumm += dt;
@@ -255,70 +250,60 @@ void *sensorsThread(void *data) {
   my_data = (struct dataStruct *) data;
 
   // Initialize IMU
-  my_data->sensors = new Sensors("mpu", false);
-  my_data->sensors->getInitialOrientation();
-  float tmpx = my_data->sensors->init_Orient[0];
-  float tmpy = my_data->sensors->init_Orient[1];
-  float tmpz = my_data->sensors->init_Orient[2];
-  float tmp_bias = atan2(tmpy , tmpz);
-  if (tmp_bias > 0)
-    my_data->enc_ang_bias[0] = (3.14 - tmp_bias);
-  else
-    my_data->enc_ang_bias[0] = (3.14 + tmp_bias);
-  my_data->enc_ang_bias[1] = -atan2(- tmpx , sqrt(tmpy * tmpy + tmpz * tmpz));
-  my_data->enc_ang_bias[2] = 0.0;
-  printf("Correct in roll= %5.5f\t  pitch= %5.5f\n", my_data->enc_ang_bias[0], my_data->enc_ang_bias[1]);
+//  my_data->sensors = new Sensors("mpu", false);
+//  my_data->sensors->getInitialOrientation();
+//  float tmpx = my_data->sensors->init_Orient[0];
+//  float tmpy = my_data->sensors->init_Orient[1];
+//  float tmpz = my_data->sensors->init_Orient[2];
+//  float tmp_bias = atan2(tmpy , tmpz);
+//  if (tmp_bias > 0)
+//    my_data->enc_ang_bias[0] = (3.14 - tmp_bias);
+//  else
+//    my_data->enc_ang_bias[0] = (3.14 + tmp_bias);
+//  my_data->enc_ang_bias[1] = -atan2(- tmpx , sqrt(tmpy * tmpy + tmpz * tmpz));
+//  my_data->enc_ang_bias[2] = 0.0;
+//  printf("Correct in roll= %5.5f\t  pitch= %5.5f\n", my_data->enc_ang_bias[0], my_data->enc_ang_bias[1]);
+
   //Initialize encoder
-  my_data->encoder = new Encoder(0);
-  my_data->enc_dir[0] = 1;
-  my_data->enc_dir[1] = 1;
-  my_data->enc_dir[2] = 1;
+  Encoder encoders(true);
+  my_data->enc_dir[0] = -1;
+  my_data->enc_dir[1] = -1;
+  my_data->enc_dir[2] = -1;
+
+  //
+  ODE Wdyn[3];
+  for(int i=0; i<3; i++)
+    Wdyn[i] = ODE(1, dynFilter);
+
   // Announce sensors thread is ready
   my_data->is_sensors_ready = true;
 
   // Main loop ----------------------------------------------------------------------------------
   TimeSampling ts(_SENSORS_FREQ);
-  float dt, dtsumm = 0;
+  float dt, dtsumm = 0, dtsumEnc = 0;
   printf("sensor is ready now\n");
   while (!_CloseRequested) {
-    dt = ts.updateTs();                 // calculate sampling time
-    my_data->sensors->update();         // update Sensor
-    my_data->encoder->updateCounts();   // update encoders counts
-    my_data->encoder->readAnglesRad(my_data->enc_angle);
-    my_data->enc_angle[0] = (my_data->enc_angle[0] - my_data->enc_ang_bias[0]) * my_data->enc_dir[0]; // change angle direction
-    my_data->enc_angle[1] = (my_data->enc_angle[1] - my_data->enc_ang_bias[1]) * my_data->enc_dir[1]; // change angle direction
-    my_data->enc_angle[2] = (my_data->enc_angle[2] - my_data->enc_ang_bias[2]) * my_data->enc_dir[2]; // change angle direction
-    vec enc_angle_tmp(my_data->enc_angle, my_data->enc_angle+3);
-    vec p{50,50,50};
-    my_data->w = my_data->wSys.update(enc_angle_tmp, p, 0.005);
 
-    // Update record values
-    my_data->record[1] = my_data->sensors->imu.ax;
-    my_data->record[2] = my_data->sensors->imu.ay;
-    my_data->record[3] = my_data->sensors->imu.az;
-    my_data->record[4] = my_data->sensors->imu.gx;
-    my_data->record[5] = my_data->sensors->imu.gy;
-    my_data->record[6] = my_data->sensors->imu.gz;
-    my_data->record[7] = my_data->sensors->imu.mx;
-    my_data->record[8] = my_data->sensors->imu.my;
-    my_data->record[9] = my_data->sensors->imu.mz;
-    my_data->record[10] = my_data->enc_angle[0];
-    my_data->record[11] = my_data->enc_angle[1];
-    my_data->record[12] = my_data->enc_angle[2];
-    my_data->record[13] = my_data->rpy[0];
-    my_data->record[14] = my_data->rpy[1];
-    my_data->record[15] = my_data->rpy[2];
-    my_data->record[16] = my_data->du[0];
-    my_data->record[17] = my_data->du[1];
-    my_data->record[18] = my_data->du[2];
-    my_data->record[19] = my_data->du[3];
-    my_data->record[20] = my_data->info[0];
-    my_data->record[21] = my_data->info[1];
-    my_data->record[22] = my_data->info[2];
-    my_data->record[23] = my_data->info[3];
-    my_data->record[24] = my_data->info[4];
-    // Record data in a file
-    printRecord(my_data->file, my_data->record);
+    dt = ts.updateTs();                 // calculate sampling time
+
+    //my_data->sensors->update();         // update Sensor
+
+    dtsumEnc += dt;
+    if (dtsumEnc > 0.01){
+      dtsumEnc = 0;
+
+      // read encoder and convert it to radian
+      encoders.updateCounts();
+      encoders.readAnglesRad(my_data->enc_angle);
+
+      // differentiate encoder data
+      for(int i=0; i<3; i++){
+        my_data->enc_angle[i] = my_data->enc_angle[i] * my_data->enc_dir[i];
+        vec ang_vec = {my_data->enc_angle[i]};
+        vec tmp = Wdyn[i].update(ang_vec,0.01);
+        my_data->w[i] = tmp[0];
+      }
+    }
 
     // Display info for user every 5 second
     dtsumm += dt;
@@ -337,50 +322,32 @@ void *sensorsThread(void *data) {
 /**************************************************************************************************
  rosNodeThread: ROS Node thread
 **************************************************************************************************/
-void *rosNodeThread(void *data) {
+void loop(dataStruct *data) {
 
-  // Initialize ros node thread -----------------------------------------------------------------
-  printf("Start ROS Node thread\n");
+  // Main loop ------------------------------------------------------------------------------------
+  float gyro[3]= {data->sensors->imu.gx,data->sensors->imu.gy,data->sensors->imu.gz};
+  float acc[3]= {data->sensors->imu.ax,data->sensors->imu.ay,data->sensors->imu.az};
+  float mag[3]= {data->sensors->imu.mx,data->sensors->imu.my,data->sensors->imu.mz};
+  std::vector<float> d;
+  d.push_back(0);
+  std::string label = "";
+  data->rosnode->publishAllMsgs(gyro,
+                                acc,
+                                data->quat,
+                                mag,
+                                data->enc_angle,
+                                data->rpy,
+                                data->du,
+                                d,
+                                label);
 
-  // Initialize mapping data
-  struct dataStruct *my_data;
-  my_data = (struct dataStruct *) data;
+  for (int i=0; i<4 ; i++)
+    data->du_cmd[i] = data->rosnode->_cmd_du[i];
+  for (int i=0; i<3 ; i++)
+    data->ang_cmd[i] = data->rosnode->_cmd_ang[i];
 
-  // Initialize ROS
-  while(!my_data->is_sensors_ready);              // wait for sensor thread to be ready
-  string name = "testbed_navio";                  // define ros node name
-  ros::init(my_data->argc, my_data->argv, name);  // initialize ros
-  ros::NodeHandle nh;                             // define ros handle
-  my_data->rosnode = new RosNode (nh,name);       // define RosNode object
-  ros::Rate loop_rate(_ROSNODE_FREQ);             // define ros frequency
-  initializeParams(nh, my_data);                  // initialize ros parameter
+  printRecord(data);
 
-  printf("ros is ready\n");
-  my_data->is_rosnode_ready = true;
-
-  // Main loop ----------------------------------------------------------------------------------
-  while (ros::ok() && !_CloseRequested)
-  {
-    float gyro[3]= {my_data->sensors->imu.gx,my_data->sensors->imu.gy,my_data->sensors->imu.gz};
-    float acc[3]= {my_data->sensors->imu.ax,my_data->sensors->imu.ay,my_data->sensors->imu.az};
-    float mag[3]= {my_data->sensors->imu.mx,my_data->sensors->imu.my,my_data->sensors->imu.mz};
-    float a[3]={1,2,3};
-    float b[4]={4,5,6,7};
-    my_data->rosnode->publishAllMsgs(gyro,
-                                     acc,
-                                     my_data->quat,
-                                     mag,
-                                     my_data->enc_angle,
-                                     my_data->rpy,
-                                     my_data->du);
-    ros::spinOnce();
-    loop_rate.sleep();
-  }
-
-  // Exit procedure -----------------------------------------------------------------------------
-  ctrlCHandler(0);
-  printf("Exit ROS Node thread\n");
-  pthread_exit(NULL);
 }
 
 /**************************************************************************************************
@@ -388,7 +355,7 @@ initializeParams: initialize parameter using rosparm package
 **************************************************************************************************/
 void initializeParams(ros::NodeHandle& n, dataStruct* data){
 
-  // Get Control Parameter ----------------------------------------------------------------------
+  // Get Control Parameter ------------------------------------------------------------------------
   // Kp angle gains
   if (n.getParam("testbed/control/angle/gains/kp", data->angConGain.kp))
     ROS_INFO("Found angle control kp gains");
@@ -529,8 +496,9 @@ void initializeParams(ros::NodeHandle& n, dataStruct* data){
 /**************************************************************************************************
 printRecord: print recorded data in a file
 **************************************************************************************************/
-void printRecord(FILE* file, float data[]){
+void printRecord(dataStruct* data){
   int size = 25;          // record data 0-24
+  float record[size];
   // Timing data
   struct timeval tv;
 
@@ -541,38 +509,51 @@ void printRecord(FILE* file, float data[]){
   // Calculate delta time
   gettimeofday(&tv, NULL);
   long tmp = 1000000L * tv.tv_sec + tv.tv_usec;
-  data[0] = tmp / 1000000.0;
+  record[0] = tmp / 1000000.0;
+
+  // Update record values
+  record[1] = data->sensors->imu.ax;
+  record[2] = data->sensors->imu.ay;
+  record[3] = data->sensors->imu.az;
+  record[4] = data->sensors->imu.gx;
+  record[5] = data->sensors->imu.gy;
+  record[6] = data->sensors->imu.gz;
+  record[7] = data->sensors->imu.mx;
+  record[8] = data->sensors->imu.my;
+  record[9] = data->sensors->imu.mz;
+  record[10] = data->enc_angle[0];
+  record[11] = data->enc_angle[1];
+  record[12] = data->enc_angle[2];
+  record[13] = data->rpy[0];
+  record[14] = data->rpy[1];
+  record[15] = data->rpy[2];
+  record[16] = data->du[0];
+  record[17] = data->du[1];
+  record[18] = data->du[2];
+  record[19] = data->du[3];
+  record[20] = data->info[0];
+  record[21] = data->info[1];
+  record[22] = data->info[2];
+  record[23] = data->info[3];
+  record[24] = data->info[4];
 
   // get data stored in data array
   for (int i = 0; i < size; ++i) {
-    pos += sprintf(pos, "%+9.3f, ", data[i]);
+    pos += sprintf(pos, "%+9.3f, ", record[i]);
   }
 
   // print collected data
-  fprintf(file, "%s\n", buf);
-  //printf("%s\n", buf);
+  fprintf(data->file, "%s\n", buf);
 }
-
-/*****************************************************************************************
- diffDyn: Dynamic system for a derivative + filter
- *****************************************************************************************/
-vec diffDyn(vec& x, vec& xdot, vec& u, vec& par)
-{
+/**************************************************************************************************
+ * dynFilter: Dynamic system for a derivative + filter
+**************************************************************************************************/
+vec dynFilter(vec& x, vec& xdot, vec& u, vec& par){
   // define output vector
   vec y(x.size());
-
-  // if the parameter vector is empty initialize by default value
-  if (par.empty())
-    for (int i=0; i< x.size(); i++){
-      par.push_back(50.0);
-    }
-
   // apply numerical differential dynamics for all input
-  for (int i=0; i < x.size(); i++){
-    xdot[i] = -par[i] * x[i] - par[i] * par[i] * u[i];
-    y[i] =           x[i] +          par[i] * u[i];
-  }
-
+  xdot[0] =        - 50.0 * x[0] +    1 * u[0];
+  y[0]    = - 50.0 * 50.0 * x[0] + 50.0 * u[0];
   // return differentiated signal
   return y;
 }
